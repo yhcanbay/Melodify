@@ -2,11 +2,12 @@
   font-family: "Segoe UI", "Trebuchet MS", sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #f4f7fb;
+  color: #f5f7ff;
   background:
-    radial-gradient(circle at top left, rgba(246, 193, 119, 0.14), transparent 30%),
-    radial-gradient(circle at top right, rgba(71, 146, 255, 0.16), transparent 26%),
-    linear-gradient(160deg, #09111a 0%, #0f1724 44%, #1b0d16 100%);
+    radial-gradient(circle at top left, rgba(139, 92, 246, 0.24), transparent 26%),
+    radial-gradient(circle at top right, rgba(91, 124, 255, 0.22), transparent 24%),
+    radial-gradient(circle at bottom left, rgba(27, 184, 255, 0.08), transparent 24%),
+    linear-gradient(160deg, #050816 0%, #091327 45%, #120a22 100%);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -25,6 +26,8 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: transparent;
+  color: #f5f7ff;
 }
 
 button,

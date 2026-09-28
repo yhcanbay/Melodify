@@ -1,24 +1,25 @@
 import { ipcRenderer, contextBridge } from 'electron'
+import type {
+  DownloadRequest,
+  DownloadResult,
+  LibrarySnapshot,
+  PickFolderResult,
+  PickLibraryResult,
+  SearchRequest,
+  SearchResult,
+  TrackPayload,
+} from '../src/shared/melodify'
 
-// --------- Expose some API to the Renderer process ---------
-contextBridge.exposeInMainWorld('ipcRenderer', {
-  on(...args: Parameters<typeof ipcRenderer.on>) {
-    const [channel, listener] = args
-    return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
-  },
-  off(...args: Parameters<typeof ipcRenderer.off>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.off(channel, ...omit)
-  },
-  send(...args: Parameters<typeof ipcRenderer.send>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.send(channel, ...omit)
-  },
-  invoke(...args: Parameters<typeof ipcRenderer.invoke>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.invoke(channel, ...omit)
-  },
-
-  // You can expose other APTs you need here.
-  // ...
+contextBridge.exposeInMainWorld('melodifyApi', {
+  pickLibrary: () => ipcRenderer.invoke('library:pick-folder') as Promise<PickLibraryResult>,
+  loadLastLibrary: () =>
+    ipcRenderer.invoke('library:load-last') as Promise<LibrarySnapshot | null>,
+  loadLastDownloadFolder: () => ipcRenderer.invoke('library:load-last-download-folder') as Promise<string | null>,
+  pickDownloadFolder: () => ipcRenderer.invoke('library:pick-download-folder') as Promise<PickFolderResult>,
+  searchTracks: (request: SearchRequest) =>
+    ipcRenderer.invoke('yt-dlp:search', request) as Promise<SearchResult[]>,
+  downloadTrack: (request: DownloadRequest) =>
+    ipcRenderer.invoke('yt-dlp:download', request) as Promise<DownloadResult>,
+  loadTrackPayload: (filePath: string) =>
+    ipcRenderer.invoke('library:load-track-payload', filePath) as Promise<TrackPayload | null>,
 })

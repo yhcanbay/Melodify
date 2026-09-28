@@ -23,5 +23,27 @@ declare namespace NodeJS {
 
 // Used in Renderer process, expose in `preload.ts`
 interface Window {
-  ipcRenderer: import('electron').IpcRenderer
+  melodifyApi: {
+    pickLibrary: () => Promise<
+      | {
+          canceled: true
+        }
+      | {
+          canceled: false
+          snapshot: import('../src/shared/melodify').LibrarySnapshot
+        }
+    >
+    loadLastLibrary: () => Promise<import('../src/shared/melodify').LibrarySnapshot | null>
+    loadLastDownloadFolder: () => Promise<string | null>
+    pickDownloadFolder: () => Promise<import('../src/shared/melodify').PickFolderResult>
+    searchTracks: (
+      request: import('../src/shared/melodify').SearchRequest,
+    ) => Promise<import('../src/shared/melodify').SearchResult[]>
+    downloadTrack: (
+      request: import('../src/shared/melodify').DownloadRequest,
+    ) => Promise<import('../src/shared/melodify').DownloadResult>
+    loadTrackPayload: (
+      filePath: string,
+    ) => Promise<import('../src/shared/melodify').TrackPayload | null>
+  }
 }
