@@ -13,6 +13,7 @@ import type {
   SearchRequest,
   SearchResult,
   TrackPayload,
+  YtDlpUpdateResult,
 } from '../src/shared/melodify'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -181,6 +182,28 @@ function getYouTubeWatchUrl(videoIdOrUrl: string) {
   }
 
   return `https://www.youtube.com/watch?v=${videoIdOrUrl}`
+}
+
+function formatCommandOutput(stdout: string, stderr: string) {
+  return [stdout.trim(), stderr.trim()].filter(Boolean).join('\n')
+}
+
+async function getYtDlpVersion() {
+  const { stdout } = await runCommand('yt-dlp', ['--version'])
+  return stdout.trim()
+}
+
+async function updateYtDlp(): Promise<YtDlpUpdateResult> {
+  const previousVersion = await getYtDlpVersion()
+  const { stdout, stderr } = await runCommand('yt-dlp', ['-U'])
+  const currentVersion = await getYtDlpVersion()
+
+  return {
+    previousVersion,
+    currentVersion,
+    updated: previousVersion !== currentVersion,
+    output: formatCommandOutput(stdout, stderr),
+  }
 }
 
 async function collectMusicFiles(rootFolder: string): Promise<MusicTrack[]> {
@@ -454,6 +477,7 @@ function registerIpcHandlers() {
   ipcMain.handle('library:pick-download-folder', async () => pickDownloadFolder())
   ipcMain.handle('library:load-track-payload', async (_event, filePath: string) => loadTrackPayload(filePath))
   ipcMain.handle('yt-dlp:search', async (_event, request: SearchRequest) => searchWithYtDlp(request))
+  ipcMain.handle('yt-dlp:update', async () => updateYtDlp())
   ipcMain.handle('yt-dlp:download', async (_event, request: DownloadRequest) => {
     await updateState({
       lastDownloadFolder: normalizeDownloadFolder(request.downloadFolderPath),

@@ -133,6 +133,24 @@ function getYouTubeWatchUrl(videoIdOrUrl) {
   }
   return `https://www.youtube.com/watch?v=${videoIdOrUrl}`;
 }
+function formatCommandOutput(stdout, stderr) {
+  return [stdout.trim(), stderr.trim()].filter(Boolean).join("\n");
+}
+async function getYtDlpVersion() {
+  const { stdout } = await runCommand("yt-dlp", ["--version"]);
+  return stdout.trim();
+}
+async function updateYtDlp() {
+  const previousVersion = await getYtDlpVersion();
+  const { stdout, stderr } = await runCommand("yt-dlp", ["-U"]);
+  const currentVersion = await getYtDlpVersion();
+  return {
+    previousVersion,
+    currentVersion,
+    updated: previousVersion !== currentVersion,
+    output: formatCommandOutput(stdout, stderr)
+  };
+}
 async function collectMusicFiles(rootFolder) {
   const tracks = [];
   async function visitDirectory(folderPath) {
@@ -338,6 +356,7 @@ function registerIpcHandlers() {
   ipcMain.handle("library:pick-download-folder", async () => pickDownloadFolder());
   ipcMain.handle("library:load-track-payload", async (_event, filePath) => loadTrackPayload(filePath));
   ipcMain.handle("yt-dlp:search", async (_event, request) => searchWithYtDlp(request));
+  ipcMain.handle("yt-dlp:update", async () => updateYtDlp());
   ipcMain.handle("yt-dlp:download", async (_event, request) => {
     await updateState({
       lastDownloadFolder: normalizeDownloadFolder(request.downloadFolderPath)

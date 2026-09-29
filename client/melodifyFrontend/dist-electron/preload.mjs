@@ -6,6 +6,7 @@ electron.contextBridge.exposeInMainWorld("melodifyApi", {
   loadLastDownloadFolder: () => electron.ipcRenderer.invoke("library:load-last-download-folder"),
   pickDownloadFolder: () => electron.ipcRenderer.invoke("library:pick-download-folder"),
   searchTracks: (request) => electron.ipcRenderer.invoke("yt-dlp:search", request),
+  updateYtDlp: () => electron.ipcRenderer.invoke("yt-dlp:update"),
   downloadTrack: (request) => electron.ipcRenderer.invoke("yt-dlp:download", request),
   loadTrackPayload: (filePath) => electron.ipcRenderer.invoke("library:load-track-payload", filePath)
 });

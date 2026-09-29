@@ -39,6 +39,7 @@ interface Window {
     searchTracks: (
       request: import('../src/shared/melodify').SearchRequest,
     ) => Promise<import('../src/shared/melodify').SearchResult[]>
+    updateYtDlp: () => Promise<import('../src/shared/melodify').YtDlpUpdateResult>
     downloadTrack: (
       request: import('../src/shared/melodify').DownloadRequest,
     ) => Promise<import('../src/shared/melodify').DownloadResult>

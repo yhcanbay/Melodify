@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <base target="_self">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify – Web Oynatıcı</title>
+    <meta name="description" content="Spotify web oynatıcı arayüz tasarımı kopyası – Tailwind CSS ile oluşturulmuştur.">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg-base: #121212;
+            --bg-elevated: #1e1e1e;
+            --bg-highlight: #282828;
+            --bg-card: rgba(255,255,255,0.05);
+            --bg-card-hover: rgba(255,255,255,0.1);
+            --text-sub: #b3b3b3;
+            --accent: #1db954;
+            --player-height: 90px;
+        }
+        body {
+            background-color: var(--bg-base);
+            color: #fff;
+            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+        }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .music-card {
+            transition: background-color 0.2s ease;
+        }
+        .music-card:hover .card-play-btn {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .card-play-btn {
+            transform: translateY(4px);
+        }
+    </style>
+</head>
+<body class="bg-[#121212] text-white h-screen overflow-hidden flex flex-col">
+
+    <!-- ÜST ÇUBUK / HEADER -->
+    <header id="top-bar" class="h-16 bg-[#030303] flex-shrink-0 border-b border-[#282828] flex items-center px-6 gap-4">
+        <!-- Gezinme okları -->
+        <div class="flex items-center gap-2">
+            <button class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white disabled opacity-50 cursor-not-allowed">
+                <i class="fas fa-chevron-left text-xs"></i>
+            </button>
+            <button class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white disabled opacity-50 cursor-not-allowed">
+                <i class="fas fa-chevron-right text-xs"></i>
+            </button>
+        </div>
+
+        <!-- Arama -->
+        <div class="flex-1"></div>
+        <div class="flex items-center gap-6">
+            <div class="relative max-w-sm">
+                <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                <input type="text" placeholder="Ne dinlemek istiyorsun?"
+                       class="w-64 h-10 bg-white/10 border border-white/20 rounded-full pl-10 pr-4 text-sm text-white placeholder-gray-400 focus:outline-none focus:border-white/40 focus:bg-white/20">
+            </div>
+            <button class="px-4 py-1 text-xs font-semibold text-white bg-white/10 rounded-full hover:bg-white/20 transition">Premium</button>
+            <button class="px-4 py-1 text-xs font-semibold text-white bg-white/10 rounded-full hover:bg-white/20 transition">Kaydol</button>
+            <button class="px-6 py-1 text-xs font-semibold text-black bg-white rounded-full hover:bg-gray-200 transition">Giriş Yap</button>
+        </div>
+    </header>
+
+    <!-- ANA İÇERİK / MAIN -->
+    <main id="app-body" class="flex flex-1 overflow-hidden">
+
+        <!-- SOL SİDEBAR / NAV -->
+        <nav id="sidebar" class="w-64 bg-black flex-shrink-0 overflow-y-auto border-r border-[#282828] pt-4" aria-label="Ana navigasyon">
+            <!-- Logo -->
+            <a href="#" class="flex items-center gap-3 px-6 py-2 text-2xl font-bold tracking-tight hover:text-white transition-colors">
+                <i class="fab fa-spotify text-[#1db954] text-3xl"></i>
+                <span>Spotify</span>
+            </a>
+
+            <!-- Ana navigasyon listesi -->
+            <ul id="sidebar-nav-list" class="mt-4 space-y-1">
+                <!-- JS ile doldurulacak -->
+            </ul>
+
+            <!-- Kitaplık Başlığı -->
+            <div class="px-6 mt-6 text-xs font-semibold uppercase text-gray-400 tracking-wider">Kitaplığın</div>
+
+            <!-- Çalma listeleri -->
+            <ul id="sidebar-playlists" class="mt-2 space-y-0.5">
+                <!-- JS ile doldurulacak -->
+            </ul>
+
+            <!-- Alt kısım: Uygulama indirme vb. -->
+            <div class="px-6 mt-8">
+                <a href="#" class="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">
+                    <i class="fas fa-circle-down text-lg"></i>
+                    <span>Uygulamayı Yükle</span>
+                </a>
+            </div>
+        </nav>
+
+        <!-- SAĞ İÇERİK / MAIN CONTENT -->
+        <div id="content-area" class="flex-1 overflow-y-auto bg-gradient-to-b from-[#1e1e1e] to-[#121212]">
+
+            <!-- Karşılama -->
+            <h1 class="text-3xl font-bold px-6 pt-6">İyi akşamlar</h1>
+
+            <!-- Hızlı Linkler (6'li Grid) -->
+            <div id="quick-links-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 px-6 mt-6">
+                <!-- JS ile doldurulacak -->
+            </div>
+
+            <!-- Yakın Zamanda Çalınanlar -->
+            <section class="mt-8">
+                <div class="flex items-center justify-between px-6">
+                    <h2 class="text-2xl font-bold">Yakın Zamanda Çalınanlar</h2>
+                    <a href="#" class="text-xs text-gray-400 hover:text-white transition-colors uppercase tracking-wider">Tümünü göster</a>
+                </div>
+                <div id="recently-played-row" class="flex overflow-x-auto space-x-4 px-6 pb-4 scrollbar-hide">
+                    <!-- JS ile doldurulacak -->
+                </div>
+            </section>
+
+            <!-- Senin için hazırladıklarımız -->
+            <section class="mt-8">
+                <div class="flex items-center justify-between px-6">
+                    <h2 class="text-2xl font-bold">Senin için hazırladıklarımız</h2>
+                    <a href="#" class="text-xs text-gray-400 hover:text-white transition-colors uppercase tracking-wider">Tümünü göster</a>
+                </div>
+                <div id="made-for-you-row" class="flex overflow-x-auto space-x-4 px-6 pb-4 scrollbar-hide">
+                    <!-- JS ile doldurulacak -->
+                </div>
+            </section>
+
+            <!-- Popüler Albümler -->
+            <section class="mt-8">
+                <div class="flex items-center justify-between px-6">
+                    <h2 class="text-2xl font-bold">Popüler Albümler</h2>
+                    <a href="#" class="text-xs text-gray-400 hover:text-white transition-colors uppercase tracking-wider">Tümünü göster</a>
+                </div>
+                <div id="popular-albums-row" class="flex overflow-x-auto space-x-4 px-6 pb-6 scrollbar-hide">
+                    <!-- JS ile doldurulacak -->
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- ALT ÇALAR ÇUBUK / FOOTER -->
+    <footer id="player-bar" class="h-24 bg-[#181818] flex-shrink-0 border-t border-[#282828] flex items-center px-4 gap-4">
+        <!-- Sol: Şu an çalan -->
+        <div class="flex items-center gap-3 min-w-[180px] max-w-[300px]">
+            <img src="https://picsum.photos/80/80?random=99" alt="Albüm kapağı" class="w-14 h-14 rounded shadow-lg object-cover">
+            <div class="truncate">
+                <p class="text-sm font-semibold text-white truncate">Çalan Şarkı</p>
+                <p class="text-xs text-gray-400 truncate">Sanatçı Adı</p>
+            </div>
+            <button class="text-gray-400 hover:text-white transition-colors text-sm"><i class="far fa-heart"></i></button>
+            <button class="text-gray-400 hover:text-white transition-colors text-sm"><i class="fas fa-expand-alt"></i></button>
+        </div>
+
+        <!-- Orta: Kontroller + İlerleme Çubuğu -->
+        <div id="player-controls" class="flex-1 flex flex-col items-center gap-1">
+            <!-- Düğmeler -->
+            <div class="flex items-center justify-center gap-4 text-sm">
+                <button data-action="shuffle" class="text-gray-400 hover:text-white transition-colors"><i class="fas fa-random"></i></button>
+                <button data-action="prev" class="text-white hover:text-white transition-colors"><i class="fas fa-step-backward"></i></button>
+                <button data-action="play-pause" class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-black hover:scale-105 transition-transform">
+                    <i class="fas fa-play ml-0.5"></i>
+                </button>
+                <button data-action="next" class="text-white hover:text-white transition-colors"><i class="fas fa-step-forward"></i></button>
+                <button data-action="repeat" class="text-gray-400 hover:text-white transition-colors"><i class="fas fa-redo"></i></button>
+            </div>
+            <!-- İlerleme -->
+            <div class="flex items-center gap-2 w-full max-w-lg">
+                <span class="text-xs text-gray-400">1:23</span>
+                <div id="progress-bar" class="relative w-full h-1.5 bg-gray-600 rounded-full cursor-pointer group">
+                    <div class="absolute left-0 top-0 h-full w-1/3 bg-white rounded-full transition-all duration-150"></div>
+                    <div class="absolute left-1/3 top-0 h-full w-0.5 bg-white rounded-full opacity-0 group-hover:opacity-100"></div>
+                </div>
+                <span class="text-xs text-gray-400">4:56</span>
+            </div>
+        </div>
+
+        <!-- Sağ: Ses, Kuyruk, Cihazlar -->
+        <div class="flex items-center gap-2 text-sm min-w-[180px] justify-end">
+            <button class="text-gray-400 hover:text-white transition-colors"><i class="fas fa-list-ul"></i></button>
+            <button class="text-gray-400 hover:text-white transition-colors"><i class="fas fa-laptop"></i></button>
+            <button class="text-gray-400 hover:text-white transition-colors"><i class="fas fa-volume-up"></i></button>
+            <div id="volume-bar" class="relative w-24 h-1.5 bg-gray-600 rounded-full cursor-pointer">
+                <div class="absolute left-0 top-0 h-full w-2/3 bg-white rounded-full"></div>
+            </div>
+            <button class="text-gray-400 hover:text-white transition-colors text-xs"><i class="fas fa-expand-alt"></i></button>
+        </div>
+    </footer>
+
+    <script>
+        // ----------------------------------------------------------------
+        // VERİ KATMANI (Data Layer)
+        // ----------------------------------------------------------------
+
+        const sidebarNav = [
+            { icon: "fa-home", label: "Ana Sayfa", active: true },
+            { icon: "fa-search", label: "Ara", active: false },
+            { icon: "fa-book", label: "Kitaplığın", active: false },
+        ];
+
+        const playlists = [
+            "Günlük Karışım 1", "Günlük Karışım 2", "Keşfet",
+            "Podcast'ler", "Radyo", "En Çok Çalınanlar 2024", "Çalma Listem"
+        ];
+
+        const quickLinks = [
+            { img: "https://picsum.photos/300/200?random=1", title: "Pop", desc: "Popüler pop şarkıları" },
+            { img: "https://picsum.photos/300/200?random=2", title: "Rock", desc: "Rock klasikleri" },
+            { img: "https://picsum.photos/300/200?random=3", title: "Hip Hop", desc: "En yeni rap ve hip hop" },
+            { img: "https://picsum.photos/300/200?random=4", title: "Podcast'ler", desc: "Yeni bölümler" },
+            { img: "https://picsum.photos/300/200?random=5", title: "Dans ve Elektronik", desc: "Elektronik ritimler" },
+            { img: "https://picsum.photos/300/200?random=6", title: "Ruh Hali", desc: "Ruh haline göre müzik" },
+        ];
+
+        const recentlyPlayed = [
+            { img: "https://picsum.photos/300/300?random=7",  title: "Günlük Karışım 1", desc: "Şarkıcı 1, Şarkıcı 2, Şarkıcı 3" },
+            { img: "https://picsum.photos/300/300?random=8",  title: "Radyo: Sanatçı Adı", desc: "Sanatçı Adı" },
+            { img: "https://picsum.photos/300/300?random=9",  title: "Podcast Adı", desc: "Yayıncı · Bölüm Adı" },
+            { img: "https://picsum.photos/300/300?random=10", title: "Ruh Hali: Mutlu", desc: "Mutlu şarkılar" },
+            { img: "https://picsum.photos/300/300?random=11", title: "En Çok Çalınanlar", desc: "2024" },
+            { img: "https://picsum.photos/300/300?random=12", title: "Keşfet", desc: "Yeni müzikler" },
+        ];
+
+        const madeForYou = [
+            { img: "https://picsum.photos/300/300?random=13", title: "Haftanın Karışımı", desc: "Her hafta yenilenen özel seçki" },
+            { img: "https://picsum.photos/300/300?random=14", title: "Uyku Öncesi", desc: "Sakin ve huzurlu parçalar" },
+            { img: "https://picsum.photos/300/300?random=15", title: "Odaklanma", desc: "Çalışırken dinlenecek müzikler" },
+            { img: "https://picsum.photos/300/300?random=16", title: "Spor", desc: "Egzersiz için yüksek tempolu şarkılar" },
+        ];
+
+        const popularAlbums = [
+            { img: "https://picsum.photos/300/300?random=17", title: "Albüm Adı 1", desc: "Sanatçı Adı · 2024" },
+            { img: "https://picsum.photos/300/300?random=18", title: "Albüm Adı 2", desc: "Sanatçı Adı · 2023" },
+            { img: "https://picsum.photos/300/300?random=19", title: "Albüm Adı 3", desc: "Sanatçı Adı · 2024" },
+            { img: "https://picsum.photos/300/300?random=20", title: "Albüm Adı 4", desc: "Sanatçı Adı · 2022" },
+        ];
+
+        // ----------------------------------------------------------------
+        // RENDER FONKSİYONLARI
+        // ----------------------------------------------------------------
+
+        function renderNav(items) {
+            return items.map(i => `
+                <li>
+                    <a href="#" class="flex items-center gap-4 px-6 py-2 text-sm font-semibold text-gray-400 hover:text-white transition-colors ${i.active ? 'active text-white border-l-4 border-[#1db954] bg-white/5' : ''}">
+                        <i class="fas ${i.icon} w-5 text-center"></i>
+                        <span>${i.label}</span>
+                    </a>
+                </li>
+            `).join("");
+        }
+
+        function renderPlaylists(items) {
+            return items.map(p => `
+                <li>
+                    <a href="#" class="block px-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition-colors truncate">${p}</a>
+                </li>
+            `).join("");
+        }
+
+        function renderQuickLinks(items) {
+            return items.map(i => `
+                <a href="#" class="group relative rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow bg-white/10">
+                    <img src="${i.img}" alt="${i.title}" class="w-full h-28 object-cover" loading="lazy">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                    <span class="absolute bottom-3 left-3 text-base font-bold text-white drop-shadow-lg">${i.title}</span>
+                </a>
+            `).join("");
+        }
+
+        function renderCards(items) {
+            return items.map(i => `
+                <div class="music-card group flex-shrink-0 w-44 p-3 rounded-lg bg-white/5 hover:bg-white/10 cursor-pointer transition-all">
+                    <div class="relative">
+                        <img src="${i.img}" alt="${i.title}" loading="lazy" class="w-full aspect-square rounded-lg shadow-lg object-cover">
+                        <button data-action="play-specific" class="card-play-btn absolute bottom-2 right-2 w-10 h-10 bg-[#1db954] rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center shadow-lg">
+                            <i class="fas fa-play text-white ml-0.5"></i>
+                        </button>
+                    </div>
+                    <h3 class="text-sm font-semibold mt-2 truncate text-gray-100">${i.title}</h3>
+                    <p class="text-xs text-gray-400 mt-1 line-clamp-2">${i.desc}</p>
+                </div>
+            `).join("");
+        }
+
+        // ----------------------------------------------------------------
+        // BAĞLAMA (Mount)
+        // ----------------------------------------------------------------
+
+        document.addEventListener("DOMContentLoaded", function() {
+            document.getElementById("sidebar-nav-list").innerHTML    = renderNav(sidebarNav);
+            document.getElementById("sidebar-playlists").innerHTML  = renderPlaylists(playlists);
+            document.getElementById("quick-links-grid").innerHTML   = renderQuickLinks(quickLinks);
+            document.getElementById("recently-played-row").innerHTML = renderCards(recentlyPlayed);
+            document.getElementById("made-for-you-row").innerHTML   = renderCards(madeForYou);
+            document.getElementById("popular-albums-row").innerHTML = renderCards(popularAlbums);
+        });
+
+        // ----------------------------------------------------------------
+        // OLAY YÖNLENDİRME (Event Delegation)
+        // ----------------------------------------------------------------
+
+        document.addEventListener("click", function(e) {
+            const target = e.target;
+
+            // 1) Sidebar Navigasyon
+            const navLink = target.closest("#sidebar-nav-list a");
+            if (navLink) {
+                e.preventDefault();
+                document.querySelectorAll("#sidebar-nav-list a").forEach(a => {
+                    a.classList.remove("active", "text-white", "border-l-4", "border-[#1db954]", "bg-white/5");
+                });
+                navLink.classList.add("active", "text-white", "border-l-4", "border-[#1db954]", "bg-white/5");
+                console.log(`Navigasyon: ${navLink.querySelector("span")?.textContent || navLink.textContent}`);
+                return;
+            }
+
+            // 2) Sidebar Çalma Listeleri
+            const playlistLink = target.closest("#sidebar-playlists a");
+            if (playlistLink) {
+                e.preventDefault();
+                console.log(`Çalma listesi seçildi: ${playlistLink.textContent}`);
+                return;
+            }
+
+            // 3) Hızlı Linkler
+            const quickLink = target.closest("#quick-links-grid a");
+            if (quickLink) {
+                e.preventDefault();
+                console.log(`Hızlı link: ${quickLink.querySelector("span")?.textContent || "Bilinmeyen"}`);
+                return;
+            }
+
+            // 4) Kart içindeki Oynat düğmesi
+            const playBtn = target.closest(".card-play-btn");
+            if (playBtn) {
+                e.preventDefault();
+                const card = playBtn.closest(".music-card");
+                if (card) {
+                    const title = card.querySelector("h3")?.textContent || "Bilinmeyen";
+                    console.log(`Çalınıyor: ${title}`);
+                }
+                // Görsel geri bildirim
+                playBtn.style.opacity = "1";
+                playBtn.querySelector("i")?.classList.replace("fa-play", "fa-pause");
+                setTimeout(() => playBtn.querySelector("i")?.classList.replace("fa-pause", "fa-play"), 2000);
+                return;
+            }
+
+            // 5) Alt çalardaki düğmeler
+            const playerBtn = target.closest("#player-controls button");
+            if (playerBtn) {
+                e.preventDefault();
+                const action = playerBtn.dataset.action;
+                console.log(`Oynatıcı eylemi: ${action || playerBtn.textContent.trim()}`);
+
+                if (action === "play-pause") {
+                    const icon = playerBtn.querySelector("i");
+                    if (icon) {
+                        const isPlaying = icon.classList.contains("fa-play");
+                        icon.classList.toggle("fa-play", !isPlaying);
+                        icon.classList.toggle("fa-pause", isPlaying);
+                    }
+                }
+                return;
+            }
+
+            // 6) Kartın kendisine tıklanması (boş alan)
+            const card = target.closest(".music-card");
+            if (card) {
+                e.preventDefault();
+                const title = card.querySelector("h3")?.textContent || "Bilinmeyen";
+                console.log(`Kart detayı: ${title}`);
+                return;
+            }
+
+            // 7) Genel bağlantılar (# ile başlayan)
+            const genericLink = target.closest("a[href^='#']");
+            if (genericLink) {
+                e.preventDefault();
+                console.log(`Bağlantı: ${genericLink.textContent.trim() || "Bilinmeyen"}`);
+                return;
+            }
+        });
+
+        // ----------------------------------------------------------------
+        // İlerleme Çubuğu Etkileşimi (İsteğe bağlı)
+        // ----------------------------------------------------------------
+
+        document.addEventListener("click", function(e) {
+            // Ana ilerleme çubuğu
+            const progBar = e.target.closest("#progress-bar");
+            if (progBar) {
+                const rect = progBar.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const percent = Math.min(100, Math.max(0, (x / rect.width) * 100));
+                progBar.querySelector("div.absolute.left-0")?.style.setProperty("width", percent + "%", "important");
+                console.log(`İlerleme: %${Math.round(percent)}`);
+                e.preventDefault();
+                return;
+            }
+
+            // Ses çubuğu
+            const volBar = e.target.closest("#volume-bar");
+            if (volBar) {
+                const rect = volBar.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const percent = Math.min(100, Math.max(0, (x / rect.width) * 100));
+                volBar.querySelector("div.absolute")?.style.setProperty("width", percent + "%", "important");
+                console.log(`Ses: %${Math.round(percent)}`);
+                e.preventDefault();
+                return;
+            }
+        });
+    </script>
+
+</body>
+</html>

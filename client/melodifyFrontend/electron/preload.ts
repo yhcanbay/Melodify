@@ -8,6 +8,7 @@ import type {
   SearchRequest,
   SearchResult,
   TrackPayload,
+  YtDlpUpdateResult,
 } from '../src/shared/melodify'
 
 contextBridge.exposeInMainWorld('melodifyApi', {
@@ -18,6 +19,7 @@ contextBridge.exposeInMainWorld('melodifyApi', {
   pickDownloadFolder: () => ipcRenderer.invoke('library:pick-download-folder') as Promise<PickFolderResult>,
   searchTracks: (request: SearchRequest) =>
     ipcRenderer.invoke('yt-dlp:search', request) as Promise<SearchResult[]>,
+  updateYtDlp: () => ipcRenderer.invoke('yt-dlp:update') as Promise<YtDlpUpdateResult>,
   downloadTrack: (request: DownloadRequest) =>
     ipcRenderer.invoke('yt-dlp:download', request) as Promise<DownloadResult>,
   loadTrackPayload: (filePath: string) =>

@@ -54,6 +54,13 @@ export type DownloadResult = {
   outputPath: string
 }
 
+export type YtDlpUpdateResult = {
+  previousVersion: string
+  currentVersion: string
+  updated: boolean
+  output: string
+}
+
 export type TrackPayload = {
   fileName: string
   mimeType: string

@@ -107,6 +107,7 @@ function App() {
   const [downloadStatus, setDownloadStatus] = useState('Arama yapıp indirilebilir sonuçları görebilirsin.')
   const [activeDownloadUrls, setActiveDownloadUrls] = useState<Record<string, boolean>>({})
   const [cookiesFromBrowser, setCookiesFromBrowser] = useState('')
+  const [isUpdatingYtDlp, setIsUpdatingYtDlp] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const autoPlayRequestedRef = useRef(false)
   const pendingBlobUrlRef = useRef('')
@@ -541,6 +542,28 @@ function App() {
     }
   }
 
+  const updateYtDlp = async () => {
+    try {
+      setIsUpdatingYtDlp(true)
+      setSearchError('')
+      setDownloadStatus('yt-dlp guncellemesi kontrol ediliyor...')
+
+      const result = await window.melodifyApi.updateYtDlp()
+      const versionMessage = result.updated
+        ? `yt-dlp guncellendi: ${result.previousVersion} -> ${result.currentVersion}`
+        : `yt-dlp zaten guncel: ${result.currentVersion}`
+
+      setDownloadStatus(result.output ? `${versionMessage}\n${result.output}` : versionMessage)
+    } catch (error) {
+      console.error(error)
+      const message = error instanceof Error ? error.message : 'Bilinmeyen hata'
+      setSearchError(`yt-dlp guncellenemedi: ${message}`)
+      setDownloadStatus('yt-dlp guncellemesi tamamlanamadi.')
+    } finally {
+      setIsUpdatingYtDlp(false)
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="app-header panel-surface">
@@ -758,6 +781,23 @@ function App() {
                 <p className="cookie-hint">
                   YouTube doğrulama isterse, oturum açık tarayıcını seçip yeniden deneyebilirsin.
                 </p>
+
+                <div className="setting-card">
+                  <div>
+                    <p className="section-kicker">yt-dlp</p>
+                    <p className="setting-value">Surumu kontrol et ve stable/latest surume guncelle.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="ghost-button small-button"
+                    onClick={() => {
+                      void updateYtDlp()
+                    }}
+                    disabled={isUpdatingYtDlp}
+                  >
+                    {isUpdatingYtDlp ? 'Kontrol ediliyor...' : 'Surum kontrol'}
+                  </button>
+                </div>
               </div>
             </div>
 
