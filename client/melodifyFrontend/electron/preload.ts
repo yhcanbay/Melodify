@@ -3,6 +3,8 @@ import type {
   DownloadRequest,
   DownloadResult,
   LibrarySnapshot,
+  MediaCommand,
+  MediaControlState,
   PickFolderResult,
   PickLibraryResult,
   SearchRequest,
@@ -24,4 +26,16 @@ contextBridge.exposeInMainWorld('melodifyApi', {
     ipcRenderer.invoke('yt-dlp:download', request) as Promise<DownloadResult>,
   loadTrackPayload: (filePath: string) =>
     ipcRenderer.invoke('library:load-track-payload', filePath) as Promise<TrackPayload | null>,
+  setMediaControlState: (state: MediaControlState) => ipcRenderer.send('media:state', state),
+  onMediaCommand: (callback: (command: MediaCommand) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, command: MediaCommand) => {
+      callback(command)
+    }
+
+    ipcRenderer.on('media:command', listener)
+
+    return () => {
+      ipcRenderer.removeListener('media:command', listener)
+    }
+  },
 })

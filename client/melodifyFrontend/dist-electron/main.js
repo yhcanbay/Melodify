@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, nativeImage, ipcMain, dialog } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { promises } from "node:fs";
@@ -30,6 +30,7 @@ const MIME_BY_EXTENSION = {
 };
 const SUPPORTED_COOKIE_BROWSERS = /* @__PURE__ */ new Set(["chrome", "chromium", "edge", "firefox", "brave", "opera"]);
 const STATE_FILE_NAME = "melodify-state.json";
+const APP_ICON_FILE_NAME = "melodify-icon.png";
 process.env.APP_ROOT = path.join(__dirname$1, "..");
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
 const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
@@ -42,6 +43,47 @@ if (!isPrimaryInstance) {
 }
 function getStateFilePath() {
   return path.join(app.getPath("userData"), STATE_FILE_NAME);
+}
+function getPublicAssetPath(fileName) {
+  return path.join(process.env.VITE_PUBLIC, fileName);
+}
+function createThumbarIcon(fileName) {
+  return nativeImage.createFromPath(getPublicAssetPath(fileName));
+}
+const thumbarIcons = {
+  next: createThumbarIcon("thumbar-next.png"),
+  pause: createThumbarIcon("thumbar-pause.png"),
+  play: createThumbarIcon("thumbar-play.png"),
+  previous: createThumbarIcon("thumbar-previous.png")
+};
+function sendMediaCommand(command) {
+  win == null ? void 0 : win.webContents.send("media:command", command);
+}
+function updateTaskbarMediaControls(state) {
+  if (!win || process.platform !== "win32") {
+    return;
+  }
+  const flags = ["enabled"];
+  win.setThumbarButtons([
+    {
+      tooltip: "Previous track",
+      icon: thumbarIcons.previous,
+      click: () => sendMediaCommand("previous"),
+      flags
+    },
+    {
+      tooltip: state.isPlaying ? "Pause" : "Play",
+      icon: state.isPlaying ? thumbarIcons.pause : thumbarIcons.play,
+      click: () => sendMediaCommand("play-pause"),
+      flags
+    },
+    {
+      tooltip: "Next track",
+      icon: thumbarIcons.next,
+      click: () => sendMediaCommand("next"),
+      flags
+    }
+  ]);
 }
 async function readState() {
   try {
@@ -328,7 +370,7 @@ function createWindow() {
     minWidth: 1100,
     minHeight: 720,
     backgroundColor: "#0b1018",
-    icon: path.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
+    icon: getPublicAssetPath(APP_ICON_FILE_NAME),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -340,6 +382,10 @@ function createWindow() {
   } else {
     win.loadFile(path.join(RENDERER_DIST, "index.html"));
   }
+  updateTaskbarMediaControls({ isPlaying: false });
+  win.on("closed", () => {
+    win = null;
+  });
 }
 app.on("second-instance", () => {
   if (win) {
@@ -359,6 +405,9 @@ function registerIpcHandlers() {
   ipcMain.handle("library:load-track-payload", async (_event, filePath) => loadTrackPayload(filePath));
   ipcMain.handle("yt-dlp:search", async (_event, request) => searchWithYtDlp(request));
   ipcMain.handle("yt-dlp:update", async () => updateYtDlp());
+  ipcMain.on("media:state", (_event, state) => {
+    updateTaskbarMediaControls(state);
+  });
   ipcMain.handle("yt-dlp:download", async (_event, request) => {
     await updateState({
       lastDownloadFolder: normalizeDownloadFolder(request.downloadFolderPath)
@@ -368,6 +417,9 @@ function registerIpcHandlers() {
 }
 if (isPrimaryInstance) {
   app.whenReady().then(() => {
+    if (process.platform === "win32") {
+      app.setAppUserModelId("com.yhcanbay.melodify");
+    }
     registerIpcHandlers();
     createWindow();
   });

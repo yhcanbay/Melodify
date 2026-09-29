@@ -67,3 +67,11 @@ export type TrackPayload = {
   mimeType: string
   data: ArrayBuffer
 }
+
+export type MediaCommand = 'play-pause' | 'previous' | 'next'
+
+export type MediaControlState = {
+  hasTrack: boolean
+  isPlaying: boolean
+  title?: string
+}

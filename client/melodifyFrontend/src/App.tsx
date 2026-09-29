@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import './App.css'
-import type { DownloadResult, LibrarySnapshot, MusicTrack, SearchResult } from './shared/melodify'
+import type { DownloadResult, LibrarySnapshot, MediaCommand, MusicTrack, SearchResult } from './shared/melodify'
 
 const MIME_BY_EXTENSION: Record<string, string[]> = {
   aac: ['audio/aac', 'audio/aacp'],
@@ -730,6 +730,97 @@ function App() {
       return moveItem(currentQueue, fromIndex, toIndex)
     })
   }
+
+  useEffect(() => {
+    window.melodifyApi.setMediaControlState({
+      hasTrack: Boolean(currentTrack),
+      isPlaying,
+      title: currentTrack?.title,
+    })
+  }, [currentTrack, isPlaying])
+
+  useEffect(() => {
+    const handleMediaCommand = (command: MediaCommand) => {
+      if (command === 'play-pause') {
+        void togglePlayPause()
+        return
+      }
+
+      if (command === 'previous') {
+        goToPreviousTrack()
+        return
+      }
+
+      goToNextTrack()
+    }
+
+    return window.melodifyApi.onMediaCommand(handleMediaCommand)
+  }, [currentTrack, queue, audioSourceUrl, loadedTrackPath])
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) {
+      return
+    }
+
+    navigator.mediaSession.metadata = currentTrack
+      ? new MediaMetadata({
+          title: currentTrack.title,
+          artist: 'Melodify',
+          album: libraryFolder ? formatFolderName(libraryFolder) : 'Yerel Müzikler',
+        })
+      : null
+    navigator.mediaSession.playbackState = currentTrack ? (isPlaying ? 'playing' : 'paused') : 'none'
+
+    const setActionHandler = (
+      action: MediaSessionAction,
+      handler: MediaSessionActionHandler | null,
+    ) => {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler)
+      } catch {
+        // Some platforms expose Media Session partially.
+      }
+    }
+
+    setActionHandler('play', () => {
+      if (!isPlaying) {
+        void togglePlayPause()
+      }
+    })
+    setActionHandler('pause', () => {
+      if (isPlaying) {
+        void togglePlayPause()
+      }
+    })
+    setActionHandler('previoustrack', goToPreviousTrack)
+    setActionHandler('nexttrack', goToNextTrack)
+    setActionHandler('seekto', (details) => {
+      if (typeof details.seekTime === 'number' && audioRef.current) {
+        audioRef.current.currentTime = details.seekTime
+        setCurrentTime(details.seekTime)
+      }
+    })
+
+    if (currentTrack && 'setPositionState' in navigator.mediaSession && duration > 0) {
+      try {
+        navigator.mediaSession.setPositionState({
+          duration,
+          playbackRate: 1,
+          position: Math.min(currentTime, duration),
+        })
+      } catch {
+        // Ignore invalid transient position values while audio metadata loads.
+      }
+    }
+
+    return () => {
+      setActionHandler('play', null)
+      setActionHandler('pause', null)
+      setActionHandler('previoustrack', null)
+      setActionHandler('nexttrack', null)
+      setActionHandler('seekto', null)
+    }
+  }, [currentTrack, currentTime, duration, isPlaying, libraryFolder])
 
   const renderTrackList = (compact = false) => {
     if (isLoading) {

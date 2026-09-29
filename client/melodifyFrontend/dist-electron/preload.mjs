@@ -8,5 +8,15 @@ electron.contextBridge.exposeInMainWorld("melodifyApi", {
   searchTracks: (request) => electron.ipcRenderer.invoke("yt-dlp:search", request),
   updateYtDlp: () => electron.ipcRenderer.invoke("yt-dlp:update"),
   downloadTrack: (request) => electron.ipcRenderer.invoke("yt-dlp:download", request),
-  loadTrackPayload: (filePath) => electron.ipcRenderer.invoke("library:load-track-payload", filePath)
+  loadTrackPayload: (filePath) => electron.ipcRenderer.invoke("library:load-track-payload", filePath),
+  setMediaControlState: (state) => electron.ipcRenderer.send("media:state", state),
+  onMediaCommand: (callback) => {
+    const listener = (_event, command) => {
+      callback(command);
+    };
+    electron.ipcRenderer.on("media:command", listener);
+    return () => {
+      electron.ipcRenderer.removeListener("media:command", listener);
+    };
+  }
 });

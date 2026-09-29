@@ -46,5 +46,9 @@ interface Window {
     loadTrackPayload: (
       filePath: string,
     ) => Promise<import('../src/shared/melodify').TrackPayload | null>
+    setMediaControlState: (state: import('../src/shared/melodify').MediaControlState) => void
+    onMediaCommand: (
+      callback: (command: import('../src/shared/melodify').MediaCommand) => void,
+    ) => () => void
   }
 }
