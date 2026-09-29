@@ -177,12 +177,14 @@ async function collectMusicFiles(rootFolder) {
         continue;
       }
       const extension = path.extname(entry.name);
+      const fileStat = await promises.stat(absolutePath);
       tracks.push({
         id: absolutePath,
         title: path.basename(entry.name, extension),
         fileName: entry.name,
         filePath: absolutePath,
-        extension: extension.replace(/^\./, "").toLowerCase()
+        extension: extension.replace(/^\./, "").toLowerCase(),
+        modifiedTimeMs: fileStat.mtimeMs
       });
     }
   }

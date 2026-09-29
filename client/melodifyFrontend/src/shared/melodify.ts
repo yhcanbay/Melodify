@@ -4,6 +4,7 @@ export type MusicTrack = {
   fileName: string
   filePath: string
   extension: string
+  modifiedTimeMs: number
 }
 
 export type LibrarySnapshot = {

@@ -241,6 +241,7 @@ async function collectMusicFiles(rootFolder: string): Promise<MusicTrack[]> {
       }
 
       const extension = path.extname(entry.name)
+      const fileStat = await fs.stat(absolutePath)
 
       tracks.push({
         id: absolutePath,
@@ -248,6 +249,7 @@ async function collectMusicFiles(rootFolder: string): Promise<MusicTrack[]> {
         fileName: entry.name,
         filePath: absolutePath,
         extension: extension.replace(/^\./, '').toLowerCase(),
+        modifiedTimeMs: fileStat.mtimeMs,
       })
     }
   }

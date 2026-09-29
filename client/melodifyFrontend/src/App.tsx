@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import './App.css'
 import type { DownloadResult, LibrarySnapshot, MusicTrack, SearchResult } from './shared/melodify'
 
@@ -15,15 +15,39 @@ const MIME_BY_EXTENSION: Record<string, string[]> = {
   webm: ['audio/webm'],
 }
 
-type AppTab = 'library' | 'downloads'
+type AppTab = 'library' | 'queue' | 'search'
+type LibrarySort = 'name-asc' | 'name-desc' | 'date-desc' | 'date-asc'
+type IconName =
+  | 'download'
+  | 'heart'
+  | 'library'
+  | 'list'
+  | 'music'
+  | 'next'
+  | 'pause'
+  | 'play'
+  | 'previous'
+  | 'queue'
+  | 'repeat'
+  | 'shuffle'
+  | 'volume'
+
+const COOKIE_BROWSER_OPTIONS = [
+  { value: '', label: 'Yok' },
+  { value: 'chrome', label: 'Chrome' },
+  { value: 'chromium', label: 'Chromium' },
+  { value: 'firefox', label: 'Firefox' },
+  { value: 'edge', label: 'Edge' },
+  { value: 'brave', label: 'Brave' },
+  { value: 'opera', label: 'Opera' },
+]
 
 function canPlayMime(mimeType: string) {
   if (typeof document === 'undefined') {
     return false
   }
 
-  const audio = document.createElement('audio')
-  return audio.canPlayType(mimeType) !== ''
+  return document.createElement('audio').canPlayType(mimeType) !== ''
 }
 
 function isTrackPlayable(track: MusicTrack) {
@@ -42,23 +66,14 @@ function shuffleTracks<T>(items: T[]) {
   return next
 }
 
-function moveTrack<T>(items: T[], fromIndex: number, toIndex: number) {
-  if (fromIndex === toIndex) {
-    return items
-  }
-
-  if (fromIndex < 0 || fromIndex >= items.length) {
-    return items
-  }
-
-  if (toIndex < 0 || toIndex >= items.length) {
+function moveItem<T>(items: T[], fromIndex: number, toIndex: number) {
+  if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) {
     return items
   }
 
   const next = [...items]
   const [item] = next.splice(fromIndex, 1)
   next.splice(toIndex, 0, item)
-
   return next
 }
 
@@ -72,22 +87,119 @@ function normalizeComparablePath(folderPath: string) {
 }
 
 function isCookieChallengeError(message: string) {
-  return /confirm you’re not a bot|confirm you're not a bot|sign in to confirm/i.test(message)
+  return /confirm youre not a bot|confirm you're not a bot|sign in to confirm/i.test(message)
 }
 
-const COOKIE_BROWSER_OPTIONS = [
-  { value: '', label: 'Yok' },
-  { value: 'chrome', label: 'Chrome' },
-  { value: 'chromium', label: 'Chromium' },
-  { value: 'firefox', label: 'Firefox' },
-  { value: 'edge', label: 'Edge' },
-  { value: 'brave', label: 'Brave' },
-  { value: 'opera', label: 'Opera' },
-]
+function formatTime(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return '0:00'
+  }
+
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = Math.floor(seconds % 60)
+  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`
+}
+
+function compareText(left: string, right: string) {
+  return left.localeCompare(right, 'tr', { numeric: true, sensitivity: 'base' })
+}
+
+function Icon({ name }: { name: IconName }) {
+  const paths: Record<IconName, JSX.Element> = {
+    download: (
+      <>
+        <path d="M12 3v11" />
+        <path d="m7 10 5 5 5-5" />
+        <path d="M5 21h14" />
+      </>
+    ),
+    heart: <path d="M20.8 5.6c-1.7-1.8-4.5-1.8-6.2 0L12 8.2 9.4 5.6c-1.7-1.8-4.5-1.8-6.2 0-1.8 1.8-1.8 4.7 0 6.5L12 21l8.8-8.9c1.8-1.8 1.8-4.7 0-6.5Z" />,
+    library: (
+      <>
+        <path d="M4 5h12v14H4z" />
+        <path d="M8 5v14" />
+        <path d="M18 7v12" />
+      </>
+    ),
+    list: (
+      <>
+        <path d="M8 6h13" />
+        <path d="M8 12h13" />
+        <path d="M8 18h13" />
+        <path d="M3 6h.01" />
+        <path d="M3 12h.01" />
+        <path d="M3 18h.01" />
+      </>
+    ),
+    music: (
+      <>
+        <path d="M9 18V5l11-2v13" />
+        <circle cx="6" cy="18" r="3" />
+        <circle cx="17" cy="16" r="3" />
+      </>
+    ),
+    next: (
+      <>
+        <path d="m6 5 9 7-9 7V5Z" />
+        <path d="M18 5v14" />
+      </>
+    ),
+    pause: (
+      <>
+        <path d="M8 5v14" />
+        <path d="M16 5v14" />
+      </>
+    ),
+    play: <path d="m8 5 11 7-11 7V5Z" />,
+    previous: (
+      <>
+        <path d="m18 19-9-7 9-7v14Z" />
+        <path d="M6 5v14" />
+      </>
+    ),
+    queue: (
+      <>
+        <path d="M4 6h16" />
+        <path d="M4 12h10" />
+        <path d="M4 18h7" />
+        <path d="m15 16 3 3 3-3" />
+      </>
+    ),
+    repeat: (
+      <>
+        <path d="m17 2 4 4-4 4" />
+        <path d="M3 11V9a3 3 0 0 1 3-3h15" />
+        <path d="m7 22-4-4 4-4" />
+        <path d="M21 13v2a3 3 0 0 1-3 3H3" />
+      </>
+    ),
+    shuffle: (
+      <>
+        <path d="M16 3h5v5" />
+        <path d="M4 20 21 3" />
+        <path d="M21 16v5h-5" />
+        <path d="M15 15l6 6" />
+        <path d="M4 4l5 5" />
+      </>
+    ),
+    volume: (
+      <>
+        <path d="M4 10v4h4l5 5V5l-5 5H4Z" />
+        <path d="M16 9a5 5 0 0 1 0 6" />
+        <path d="M19 6a9 9 0 0 1 0 12" />
+      </>
+    ),
+  }
+
+  return (
+    <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      {paths[name]}
+    </svg>
+  )
+}
 
 function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('library')
-  const [libraryView, setLibraryView] = useState<'tracks' | 'queue'>('tracks')
   const [libraryFolder, setLibraryFolder] = useState('')
   const [libraryTracks, setLibraryTracks] = useState<MusicTrack[]>([])
   const [queue, setQueue] = useState<MusicTrack[]>([])
@@ -101,6 +213,8 @@ function App() {
   const [loadedTrackPath, setLoadedTrackPath] = useState('')
   const [downloadFolderPath, setDownloadFolderPath] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [librarySearchQuery, setLibrarySearchQuery] = useState('')
+  const [librarySort, setLibrarySort] = useState<LibrarySort>('name-asc')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [searchError, setSearchError] = useState('')
@@ -108,14 +222,46 @@ function App() {
   const [activeDownloadUrls, setActiveDownloadUrls] = useState<Record<string, boolean>>({})
   const [cookiesFromBrowser, setCookiesFromBrowser] = useState('')
   const [isUpdatingYtDlp, setIsUpdatingYtDlp] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [volume, setVolume] = useState(0.7)
+  const [draggedQueueTrackId, setDraggedQueueTrackId] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const autoPlayRequestedRef = useRef(false)
   const pendingBlobUrlRef = useRef('')
 
+  const playableLibraryTracks = useMemo(() => libraryTracks.filter(isTrackPlayable), [libraryTracks])
+  const visibleLibraryTracks = useMemo(() => {
+    const query = librarySearchQuery.trim().toLowerCase()
+    const filteredTracks = query
+      ? libraryTracks.filter((track) =>
+          `${track.title} ${track.fileName} ${track.filePath}`.toLowerCase().includes(query),
+        )
+      : libraryTracks
+
+    return [...filteredTracks].sort((left, right) => {
+      if (librarySort === 'name-desc') {
+        return compareText(right.title, left.title)
+      }
+
+      if (librarySort === 'date-desc') {
+        return right.modifiedTimeMs - left.modifiedTimeMs
+      }
+
+      if (librarySort === 'date-asc') {
+        return left.modifiedTimeMs - right.modifiedTimeMs
+      }
+
+      return compareText(left.title, right.title)
+    })
+  }, [librarySearchQuery, librarySort, libraryTracks])
+  const playableVisibleLibraryTracks = useMemo(
+    () => visibleLibraryTracks.filter(isTrackPlayable),
+    [visibleLibraryTracks],
+  )
   const currentTrackIndex = queue.findIndex((track) => track.id === currentTrackId)
   const currentTrack = currentTrackIndex >= 0 ? queue[currentTrackIndex] : null
-  const playableLibraryTracks = libraryTracks.filter(isTrackPlayable)
-  const supportedTrackCount = playableLibraryTracks.length
+  const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0
 
   const syncSnapshot = (
     snapshot: LibrarySnapshot,
@@ -132,14 +278,13 @@ function App() {
     setQueue(playableTracks)
     setCurrentTrackId(preservedTrack?.id ?? null)
     setIsShuffled(false)
+    setErrorMessage('')
 
     if (!preservePlayback) {
       setIsPlaying(false)
       setAudioSourceUrl('')
       setLoadedTrackPath('')
     }
-
-    setErrorMessage('')
 
     if (snapshot.tracks.length === 0) {
       setStatusMessage(`${formatFolderName(snapshot.folderPath)} içinde desteklenen müzik dosyası bulunamadı.`)
@@ -155,14 +300,12 @@ function App() {
       setStatusMessage(
         `${playableTracks.length} oynatılabilir parça bulundu${unsupportedSuffix}. ${formatFolderName(
           snapshot.folderPath,
-        )} klasörü hazır.`,
+        )} klasor hazir.`,
       )
       return
     }
 
-    setStatusMessage(
-      `${formatFolderName(snapshot.folderPath)} içinde bu kurulumda oynatılabilen bir ses dosyası bulunamadı.`,
-    )
+    setStatusMessage(`${formatFolderName(snapshot.folderPath)} içinde oynatılabilen ses dosyası bulunamadı.`)
   }
 
   useEffect(() => {
@@ -181,6 +324,7 @@ function App() {
 
         if (librarySnapshot) {
           syncSnapshot(librarySnapshot)
+
           if (!lastDownloadFolder) {
             setDownloadFolderPath(librarySnapshot.folderPath)
           }
@@ -207,6 +351,14 @@ function App() {
   useEffect(() => {
     const audio = audioRef.current
 
+    if (audio) {
+      audio.volume = volume
+    }
+  }, [volume, audioSourceUrl, currentTrack?.id])
+
+  useEffect(() => {
+    const audio = audioRef.current
+
     if (!audio || !currentTrack) {
       const blobUrl = pendingBlobUrlRef.current
 
@@ -217,6 +369,8 @@ function App() {
 
       setAudioSourceUrl('')
       setLoadedTrackPath('')
+      setCurrentTime(0)
+      setDuration(0)
       return
     }
 
@@ -306,6 +460,7 @@ function App() {
       }
 
       syncSnapshot(result.snapshot)
+      setActiveTab('library')
     } catch (error) {
       console.error(error)
       setErrorMessage('Klasör seçilirken beklenmeyen bir hata oluştu.')
@@ -331,7 +486,7 @@ function App() {
     }
   }
 
-  const startTrack = async (trackId: string) => {
+  const startTrack = async (trackId: string, sourceTracks?: MusicTrack[]) => {
     const selectedTrack = libraryTracks.find((track) => track.id === trackId)
     const audio = audioRef.current
 
@@ -343,10 +498,12 @@ function App() {
       setCurrentTrackId(null)
       setIsPlaying(false)
       setStatusMessage('Seçilen dosya bu kurulumda desteklenmiyor.')
-      setErrorMessage(
-        'Bu parça tarayıcı/Electron codec desteği nedeniyle oynatılamıyor. MP3, WAV, OGG veya OPUS deneyebilirsin.',
-      )
+      setErrorMessage('Bu parça codec desteği nedeniyle oynatılamıyor. MP3, WAV, OGG veya OPUS deneyebilirsin.')
       return
+    }
+
+    if (!isShuffled && sourceTracks) {
+      setQueue(sourceTracks.filter(isTrackPlayable))
     }
 
     if (currentTrackId === trackId && audio && audioSourceUrl) {
@@ -367,11 +524,11 @@ function App() {
   }
 
   const goToPreviousTrack = () => {
+    const audio = audioRef.current
+
     if (!currentTrack || queue.length === 0) {
       return
     }
-
-    const audio = audioRef.current
 
     if (audio && audio.currentTime > 3) {
       audio.currentTime = 0
@@ -446,25 +603,18 @@ function App() {
     setStatusMessage('Karışık çalma etkin.')
   }
 
-  const moveCurrentTrack = (trackId: string, direction: -1 | 1) => {
-    setQueue((previousQueue) => {
-      const fromIndex = previousQueue.findIndex((track) => track.id === trackId)
-      const toIndex = fromIndex + direction
-      return moveTrack(previousQueue, fromIndex, toIndex)
-    })
-  }
-
-  const runSearch = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
+  const runSearch = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault()
     const query = searchQuery.trim()
 
     if (!query) {
       setSearchError('Aramak için bir şarkı adı yaz.')
+      setActiveTab('search')
       return
     }
 
     try {
+      setActiveTab('search')
       setIsSearching(true)
       setSearchError('')
       setSearchResults([])
@@ -479,12 +629,11 @@ function App() {
       setDownloadStatus(
         results.length > 0 ? `${results.length} sonuç bulundu. İstediğini indirebilirsin.` : 'Sonuç bulunamadı.',
       )
-      setActiveTab('downloads')
     } catch (error) {
       console.error(error)
       const message = error instanceof Error ? error.message : 'Bilinmeyen hata'
       setSearchError(`Arama başarısız: ${message}`)
-      setDownloadStatus('Arama tamamlanamadı.')
+      setDownloadStatus('Arama tamamlanamad.')
     } finally {
       setIsSearching(false)
     }
@@ -509,10 +658,7 @@ function App() {
 
       setDownloadStatus(`İndirme tamamlandı: ${outcome.fileName}`)
 
-      if (
-        libraryFolder &&
-        normalizeComparablePath(downloadFolderPath) === normalizeComparablePath(libraryFolder)
-      ) {
+      if (libraryFolder && normalizeComparablePath(downloadFolderPath) === normalizeComparablePath(libraryFolder)) {
         const refreshed = await window.melodifyApi.loadLastLibrary()
 
         if (refreshed) {
@@ -526,9 +672,7 @@ function App() {
       console.error(error)
       const message = error instanceof Error ? error.message : 'Bilinmeyen hata'
       if (isCookieChallengeError(message)) {
-        setSearchError(
-          'YouTube bot doğrulaması istedi. "Çerez kaynağı" seçip tarayıcı çerezleriyle tekrar dene.',
-        )
+        setSearchError('YouTube bot doğrulaması istedi. Çerez kaynağı seçip tarayıcı çerezleriyle tekrar dene.')
       } else {
         setSearchError(`İndirme başarısız: ${message}`)
       }
@@ -546,344 +690,445 @@ function App() {
     try {
       setIsUpdatingYtDlp(true)
       setSearchError('')
-      setDownloadStatus('yt-dlp guncellemesi kontrol ediliyor...')
+      setDownloadStatus('yt-dlp güncellemesi kontrol ediliyor...')
 
       const result = await window.melodifyApi.updateYtDlp()
       const versionMessage = result.updated
-        ? `yt-dlp guncellendi: ${result.previousVersion} -> ${result.currentVersion}`
-        : `yt-dlp zaten guncel: ${result.currentVersion}`
+        ? `yt-dlp güncellendi: ${result.previousVersion} -> ${result.currentVersion}`
+        : `yt-dlp zaten güncel: ${result.currentVersion}`
 
       setDownloadStatus(result.output ? `${versionMessage}\n${result.output}` : versionMessage)
     } catch (error) {
       console.error(error)
       const message = error instanceof Error ? error.message : 'Bilinmeyen hata'
-      setSearchError(`yt-dlp guncellenemedi: ${message}`)
-      setDownloadStatus('yt-dlp guncellemesi tamamlanamadi.')
+      setSearchError(`yt-dlp güncellenemedi: ${message}`)
+      setDownloadStatus('yt-dlp güncellemesi tamamlanamadı.')
     } finally {
       setIsUpdatingYtDlp(false)
     }
   }
 
+  const seekToPercent = (percent: number) => {
+    const audio = audioRef.current
+
+    if (!audio || !duration) {
+      return
+    }
+
+    audio.currentTime = (duration * percent) / 100
+    setCurrentTime(audio.currentTime)
+  }
+
+  const moveQueueTrack = (targetTrackId: string) => {
+    if (!draggedQueueTrackId || draggedQueueTrackId === targetTrackId) {
+      return
+    }
+
+    setQueue((currentQueue) => {
+      const fromIndex = currentQueue.findIndex((track) => track.id === draggedQueueTrackId)
+      const toIndex = currentQueue.findIndex((track) => track.id === targetTrackId)
+      return moveItem(currentQueue, fromIndex, toIndex)
+    })
+  }
+
+  const renderTrackList = (compact = false) => {
+    if (isLoading) {
+      return <div className="spotify-empty">Kitaplık yükleniyor...</div>
+    }
+
+    if (libraryTracks.length === 0) {
+      return (
+        <div className="spotify-empty">
+          <strong>Henüz bir klasör seçilmedi</strong>
+          <span>Yerel müziklerini görmek için kitaplığını bağla.</span>
+          <button type="button" className="spotify-primary" onClick={openLibraryPicker}>
+            Klasör seç
+          </button>
+        </div>
+      )
+    }
+
+    return (
+      <div className={compact ? 'track-table compact' : 'track-table'}>
+        {visibleLibraryTracks.length === 0 ? (
+          <div className="spotify-empty">Bu arama ve sıralama için sonuç yok.</div>
+        ) : visibleLibraryTracks.map((track, index) => {
+          const playable = isTrackPlayable(track)
+          const active = track.id === currentTrack?.id
+
+          return (
+            <button
+              key={track.id}
+              type="button"
+              className={`track-row${active ? ' active' : ''}${playable ? '' : ' disabled'}`}
+              onClick={() => startTrack(track.id, visibleLibraryTracks)}
+              disabled={!playable}
+            >
+              <span className="track-number">{String(index + 1).padStart(2, '0')}</span>
+              <span className="track-cover">
+                <Icon name={active && isPlaying ? 'pause' : 'music'} />
+              </span>
+              <span className="track-copy">
+                <strong>{track.title}</strong>
+                <small>{track.fileName}</small>
+              </span>
+              <span className="track-format">{track.extension.toUpperCase()}</span>
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
-    <main className="app-shell">
-      <header className="app-header panel-surface">
-        <div className="header-left">
-          <p className="eyebrow">Melodify</p>
-          <div className="header-actions">
-            <button type="button" className="primary-button" onClick={openLibraryPicker}>
-              Klasör seç
+    <div className="spotify-shell">
+      <main className="spotify-body">
+        <aside className="sidebar">
+          <button type="button" className="brand-button" onClick={() => setActiveTab('library')}>
+            <span className="brand-mark">
+              <Icon name="music" />
+            </span>
+            <span>Melodify</span>
+          </button>
+
+          <nav className="sidebar-nav" aria-label="Ana navigasyon">
+            <button
+              type="button"
+              className={activeTab === 'library' ? 'active' : ''}
+              onClick={() => setActiveTab('library')}
+            >
+              <span>
+                <Icon name="list" />
+              </span>
+              Liste
             </button>
             <button
               type="button"
-              className="ghost-button"
-              onClick={toggleShuffle}
-              disabled={playableLibraryTracks.length < 2}
+              className={activeTab === 'queue' ? 'active' : ''}
+              onClick={() => setActiveTab('queue')}
             >
-              {isShuffled ? 'Karışığı kapat' : 'Karışık çal'}
+              <span>
+                <Icon name="queue" />
+              </span>
+              Çalma Sırası
             </button>
+            <button
+              type="button"
+              className={activeTab === 'search' ? 'active' : ''}
+              onClick={() => setActiveTab('search')}
+            >
+              <span>
+                <Icon name="download" />
+              </span>
+              İndirilenler
+            </button>
+          </nav>
+
+          <div className="sidebar-status">
+            <strong>{libraryTracks.length} parça</strong>
+            <span>{playableLibraryTracks.length} oynatılabilir</span>
+            <span>{downloadFolderPath ? formatFolderName(downloadFolderPath) : 'İndirme klasörü yok'}</span>
           </div>
-        </div>
+        </aside>
 
-        <div className="header-stats">
-          <span className="status-pill">{libraryTracks.length} parça</span>
-          <span className="status-pill">{supportedTrackCount} oynatılabilir</span>
-          <span className="status-pill">{downloadFolderPath ? formatFolderName(downloadFolderPath) : 'İndirme yok'}</span>
-        </div>
-
-        <p className="status-message">{statusMessage}</p>
-        {errorMessage && <p className="error-message">{errorMessage}</p>}
-      </header>
-
-      <nav className="tab-strip panel-surface" aria-label="Ana bölümler">
-        <button
-          type="button"
-          className={`tab-button${activeTab === 'library' ? ' active' : ''}`}
-          onClick={() => setActiveTab('library')}
-        >
-          Kütüphane
-        </button>
-        <button
-          type="button"
-          className={`tab-button${activeTab === 'downloads' ? ' active' : ''}`}
-          onClick={() => setActiveTab('downloads')}
-        >
-          Ara ve indir
-        </button>
-      </nav>
-
-      <section className="content-shell panel-surface">
-        {activeTab === 'library' ? (
-          <div className="library-layout">
-            <div className="section-toolbar">
-              <div>
-                <p className="section-kicker">Kitaplık</p>
-                <h2>Müziklerin</h2>
-              </div>
-              <div className="segmented-control">
-                <button
-                  type="button"
-                  className={`segment-button${libraryView === 'tracks' ? ' active' : ''}`}
-                  onClick={() => setLibraryView('tracks')}
-                >
-                  Liste
-                </button>
-                <button
-                  type="button"
-                  className={`segment-button${libraryView === 'queue' ? ' active' : ''}`}
-                  onClick={() => setLibraryView('queue')}
-                >
-                  Sıra
-                </button>
-              </div>
-            </div>
-
-            {libraryView === 'tracks' ? (
-              <div className="panel-stack">
-                {isLoading && <div className="info-card">Kütüphane yükleniyor...</div>}
-
-                {!isLoading && libraryTracks.length === 0 && (
-                  <div className="empty-card">
-                    <h3>Henüz bir klasör seçilmedi</h3>
-                    <p>Bir klasör seçtiğinde parçalar burada görünecek.</p>
+        <section className="content-area">
+          {activeTab === 'library' && (
+            <section className="library-page">
+              <div className="library-banner">
+                <div className="large-cover">
+                  <Icon name="music" />
+                </div>
+                <div>
+                  <p className="eyebrow">Kitaplık</p>
+                  <h1>{libraryFolder ? formatFolderName(libraryFolder) : 'Müziklerin'}</h1>
+                  <p>{statusMessage}</p>
+                  {errorMessage && <div className="inline-error">{errorMessage}</div>}
+                  <div className="banner-actions">
+                    <button
+                      type="button"
+                      className="round-play"
+                      onClick={() =>
+                        playableVisibleLibraryTracks[0] &&
+                        startTrack(playableVisibleLibraryTracks[0].id, visibleLibraryTracks)
+                      }
+                    >
+                      <Icon name="play" />
+                    </button>
+                    <button type="button" onClick={openLibraryPicker}>
+                      Klasör seç
+                    </button>
+                    <button type="button" onClick={toggleShuffle} disabled={playableLibraryTracks.length < 2}>
+                      {isShuffled ? 'Karışığı kapat' : 'Karışık çal'}
+                    </button>
                   </div>
-                )}
-
-                {libraryTracks.length > 0 && (
-                  <div className="track-list">
-                    {libraryTracks.map((track) => {
-                      const isActive = currentTrack?.id === track.id
-                      const playable = isTrackPlayable(track)
-
-                      return (
-                        <button
-                          key={track.id}
-                          type="button"
-                          className={`track-card${isActive ? ' active' : ''}${playable ? '' : ' disabled'}`}
-                          onClick={() => startTrack(track.id)}
-                          disabled={!playable}
-                        >
-                          <div className="track-card-main">
-                            <span className="track-title">{track.title}</span>
-                            <span className="track-meta">{track.fileName}</span>
-                          </div>
-                          <span className={`track-chip${playable ? '' : ' muted'}`}>
-                            {playable ? (isActive ? 'Çalıyor' : 'Çal') : 'Desteklenmiyor'}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
+                </div>
               </div>
-            ) : (
-              <div className="panel-stack">
-                <section className="subpanel">
-                  <div className="subpanel-head">
-                    <div>
-                      <p className="section-kicker">Çalma sırası</p>
-                      <h3>Kuyruk düzeni</h3>
-                    </div>
-                    <p className="subpanel-note">Yukarı / aşağı butonlarıyla sıralamayı değiştir.</p>
-                  </div>
 
-                  {queue.length === 0 ? (
-                    <div className="info-card">Çalma sırası boş.</div>
-                  ) : (
-                    <div className="queue-list">
-                      {queue.map((track, index) => {
-                        const isActive = track.id === currentTrack?.id
-
-                        return (
-                          <article key={track.id} className={`queue-item${isActive ? ' active' : ''}`}>
-                            <button type="button" className="queue-track" onClick={() => startTrack(track.id)}>
-                              <span className="queue-index">{String(index + 1).padStart(2, '0')}</span>
-                              <span className="queue-title-wrap">
-                                <span className="track-title">{track.title}</span>
-                                <span className="track-meta">{track.fileName}</span>
-                              </span>
-                            </button>
-
-                            <div className="queue-actions">
-                              <button
-                                type="button"
-                                className="mini-button"
-                                onClick={() => moveCurrentTrack(track.id, -1)}
-                                disabled={index === 0}
-                              >
-                                Yukarı
-                              </button>
-                              <button
-                                type="button"
-                                className="mini-button"
-                                onClick={() => moveCurrentTrack(track.id, 1)}
-                                disabled={index === queue.length - 1}
-                              >
-                                Aşağı
-                              </button>
-                            </div>
-                          </article>
-                        )
-                      })}
-                    </div>
-                  )}
-                </section>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="downloads-layout">
-            <div className="section-toolbar">
-              <div>
-                <p className="section-kicker">İndirme</p>
-                <h2>Arama ve seçim</h2>
-              </div>
-            </div>
-
-            <div className="downloads-grid">
-              <form className="search-form panel-card" onSubmit={runSearch}>
-                <label className="search-field">
-                  <span>Şarkı ara</span>
+              <div className="library-tools">
+                <label>
+                  <span>Kitaplıkta ara</span>
                   <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="ör. artist - song name"
+                    type="search"
+                    value={librarySearchQuery}
+                    onChange={(event) => setLibrarySearchQuery(event.target.value)}
+                    placeholder="Şarkı, dosya veya klasör ara"
                   />
                 </label>
-
-                <button type="submit" className="primary-button" disabled={isSearching}>
-                  {isSearching ? 'Aranıyor...' : 'Ara'}
-                </button>
-              </form>
-
-              <div className="download-settings panel-card">
-                <div className="setting-card">
-                  <div>
-                    <p className="section-kicker">Hedef klasör</p>
-                    <p className="setting-value">{downloadFolderPath || 'Henüz seçilmedi'}</p>
-                  </div>
-                  <button type="button" className="ghost-button small-button" onClick={chooseDownloadFolder}>
-                    Klasör seç
-                  </button>
-                </div>
-
-                <label className="cookie-picker">
-                  <span>Çerez kaynağı</span>
-                  <select value={cookiesFromBrowser} onChange={(event) => setCookiesFromBrowser(event.target.value)}>
-                    {COOKIE_BROWSER_OPTIONS.map((option) => (
-                      <option key={option.value || 'none'} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
+                <label>
+                  <span>Sırala</span>
+                  <select value={librarySort} onChange={(event) => setLibrarySort(event.target.value as LibrarySort)}>
+                    <option value="name-asc">Ada göre A-Z</option>
+                    <option value="name-desc">Ada göre Z-A</option>
+                    <option value="date-desc">Tarihe göre yeni</option>
+                    <option value="date-asc">Tarihe göre eski</option>
                   </select>
                 </label>
+              </div>
 
-                <p className="cookie-hint">
-                  YouTube doğrulama isterse, oturum açık tarayıcını seçip yeniden deneyebilirsin.
-                </p>
+              {renderTrackList()}
+            </section>
+          )}
 
-                <div className="setting-card">
-                  <div>
-                    <p className="section-kicker">yt-dlp</p>
-                    <p className="setting-value">Surumu kontrol et ve stable/latest surume guncelle.</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="ghost-button small-button"
-                    onClick={() => {
-                      void updateYtDlp()
-                    }}
-                    disabled={isUpdatingYtDlp}
-                  >
-                    {isUpdatingYtDlp ? 'Kontrol ediliyor...' : 'Surum kontrol'}
-                  </button>
+          {activeTab === 'queue' && (
+            <section className="library-page">
+              <div className="section-head page-head">
+                <div>
+                  <p className="eyebrow">Sıra</p>
+                  <h1>Çalma Sırası</h1>
                 </div>
               </div>
-            </div>
+              <div className="track-table">
+                {queue.length === 0 ? (
+                  <div className="spotify-empty">Çalma sırası boş.</div>
+                ) : (
+                  queue.map((track, index) => (
+                    <button
+                      key={track.id}
+                      type="button"
+                      className={`track-row queue-draggable${track.id === currentTrack?.id ? ' active' : ''}${
+                        track.id === draggedQueueTrackId ? ' dragging' : ''
+                      }`}
+                      draggable
+                      onClick={() => startTrack(track.id)}
+                      onDragStart={(event) => {
+                        event.dataTransfer.effectAllowed = 'move'
+                        event.dataTransfer.setData('text/plain', track.id)
+                        setDraggedQueueTrackId(track.id)
+                      }}
+                      onDragOver={(event) => {
+                        event.preventDefault()
+                        event.dataTransfer.dropEffect = 'move'
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault()
+                        moveQueueTrack(track.id)
+                        setDraggedQueueTrackId(null)
+                      }}
+                      onDragEnd={() => setDraggedQueueTrackId(null)}
+                    >
+                      <span className="track-number">{String(index + 1).padStart(2, '0')}</span>
+                      <span className="track-cover">
+                        <Icon name="music" />
+                      </span>
+                      <span className="track-copy">
+                        <strong>{track.title}</strong>
+                        <small>{track.fileName}</small>
+                      </span>
+                      <span className="track-format">Sıra</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </section>
+          )}
 
-            {searchError && <div className="error-card">{searchError}</div>}
-            <div className="info-card">{downloadStatus}</div>
-
-            <div className="search-results">
-              {searchResults.length === 0 ? (
-                <div className="empty-card compact">
-                  <h3>Arama sonucu bekleniyor</h3>
-                  <p>Bir şarkı ara ve sonuçlardan istediğini indir.</p>
+          {activeTab === 'search' && (
+            <section className="download-page">
+              <div className="section-head page-head">
+                <div>
+                  <p className="eyebrow">İndirme</p>
+                  <h1>Ara ve indir</h1>
                 </div>
-              ) : (
-                searchResults.map((result) => {
-                  const downloading = Boolean(activeDownloadUrls[result.webpageUrl])
+              </div>
 
-                  return (
-                    <article key={result.webpageUrl} className="search-result-card">
-                      {result.thumbnailUrl ? (
-                        <img className="search-thumb" src={result.thumbnailUrl} alt="" />
-                      ) : (
-                        <div className="search-thumb placeholder" />
-                      )}
+              <div className="download-layout">
+                <form className="download-search-card" onSubmit={runSearch}>
+                  <label>
+                    <span>Şarkı ara</span>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder="örn. sanatçı - şarkı adı"
+                    />
+                  </label>
+                  <button type="submit" className="spotify-primary" disabled={isSearching}>
+                    {isSearching ? 'Aranıyor...' : 'Ara'}
+                  </button>
+                </form>
 
-                      <div className="search-result-body">
-                        <div className="search-result-title-row">
+                <div className="settings-card">
+                  <div className="setting-row">
+                    <div>
+                      <strong>Hedef klasör</strong>
+                      <span>{downloadFolderPath || 'Henüz seçilmedi'}</span>
+                    </div>
+                    <button type="button" onClick={chooseDownloadFolder}>
+                      Klasör seç
+                    </button>
+                  </div>
+
+                  <label className="select-row">
+                    <span>Çerez kaynağı</span>
+                    <select value={cookiesFromBrowser} onChange={(event) => setCookiesFromBrowser(event.target.value)}>
+                      {COOKIE_BROWSER_OPTIONS.map((option) => (
+                        <option key={option.value || 'none'} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="setting-row">
+                    <div>
+                      <strong>yt-dlp</strong>
+                      <span>Sürümü kontrol et ve güncelle.</span>
+                    </div>
+                    <button type="button" onClick={updateYtDlp} disabled={isUpdatingYtDlp}>
+                      {isUpdatingYtDlp ? 'Kontrol...' : 'Sürüm kontrol'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {searchError && <div className="inline-error">{searchError}</div>}
+              <div className="download-status">{downloadStatus}</div>
+
+              <div className="result-list">
+                {searchResults.length === 0 ? (
+                  <div className="spotify-empty">
+                    <strong>Arama sonucu bekleniyor</strong>
+                    <span>Bir şarkı ara ve sonuçlardan istediğini indir.</span>
+                  </div>
+                ) : (
+                  searchResults.map((result) => {
+                    const downloading = Boolean(activeDownloadUrls[result.webpageUrl])
+
+                    return (
+                      <article key={result.webpageUrl} className="result-card">
+                        {result.thumbnailUrl ? (
+                          <img src={result.thumbnailUrl} alt="" />
+                        ) : (
+                          <div className="result-placeholder">
+                            <Icon name="music" />
+                          </div>
+                        )}
+                        <div>
                           <h3>{result.title}</h3>
-                          <span className="result-duration">{result.durationText}</span>
+                          <p>{result.uploader}</p>
+                          <span>{result.webpageUrl}</span>
                         </div>
-                        <p className="result-uploader">{result.uploader}</p>
-                        <p className="result-url">{result.webpageUrl}</p>
-                      </div>
+                        <small>{result.durationText}</small>
+                        <button
+                          type="button"
+                          className="spotify-primary"
+                          onClick={() => {
+                            void handleDownload(result)
+                          }}
+                          disabled={downloading || !downloadFolderPath}
+                        >
+                          {downloading ? 'İndiriliyor...' : 'İndir'}
+                        </button>
+                      </article>
+                    )
+                  })
+                )}
+              </div>
+            </section>
+          )}
+        </section>
+      </main>
 
-                      <button
-                        type="button"
-                        className="primary-button result-download"
-                        onClick={() => {
-                          void handleDownload(result)
-                        }}
-                        disabled={downloading || !downloadFolderPath}
-                      >
-                        {downloading ? 'İndiriliyor...' : 'İndir'}
-                      </button>
-                    </article>
-                  )
-                })
-              )}
-            </div>
+      <footer className="player-bar">
+        <div className="now-playing">
+          <div className="player-cover">
+            <Icon name="music" />
           </div>
-        )}
-      </section>
-
-      <footer className="player-dock panel-surface">
-        <div className="dock-track-info">
-          <p className="section-kicker">Şimdi çalıyor</p>
-          <strong>{currentTrack?.title ?? 'Henüz parça seçilmedi'}</strong>
-          <span>{currentTrack?.filePath ?? 'Çalmaya başlamak için soldan bir parça seç.'}</span>
+          <div>
+            <strong>{currentTrack?.title ?? 'Çalan Şarkı'}</strong>
+            <span>{currentTrack?.fileName ?? 'Calmaya baslamak icin bir parça sec.'}</span>
+          </div>
+          <button type="button" aria-label="Beğen">
+            <Icon name="heart" />
+          </button>
         </div>
 
-        <div className="dock-controls">
-          <button type="button" className="control-button" onClick={goToPreviousTrack} disabled={!currentTrack}>
-            Önceki
+        <div className="player-controls">
+          <div className="player-buttons">
+            <button type="button" className={isShuffled ? 'accent' : ''} onClick={toggleShuffle} disabled={playableLibraryTracks.length < 2}>
+              <Icon name="shuffle" />
+            </button>
+            <button type="button" onClick={goToPreviousTrack} disabled={!currentTrack}>
+              <Icon name="previous" />
+            </button>
+            <button type="button" className="play-button" onClick={togglePlayPause} disabled={!currentTrack}>
+              <Icon name={isPlaying ? 'pause' : 'play'} />
+            </button>
+            <button type="button" onClick={goToNextTrack} disabled={!currentTrack}>
+              <Icon name="next" />
+            </button>
+            <button type="button">
+              <Icon name="repeat" />
+            </button>
+          </div>
+          <div className="progress-line">
+            <span>{formatTime(currentTime)}</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={progressPercent}
+              onChange={(event) => seekToPercent(Number(event.target.value))}
+              aria-label="İlerleme"
+            />
+            <span>{formatTime(duration)}</span>
+          </div>
+        </div>
+
+        <div className="volume-controls">
+          <button type="button" onClick={() => setActiveTab('library')}>
+            <Icon name="queue" />
           </button>
-          <button type="button" className="control-button primary" onClick={togglePlayPause} disabled={!currentTrack}>
-            {isPlaying ? 'Duraklat' : 'Oynat'}
-          </button>
-          <button type="button" className="control-button" onClick={goToNextTrack} disabled={!currentTrack}>
-            Sonraki
-          </button>
+          <span>
+            <Icon name="volume" />
+          </span>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={volume}
+            onChange={(event) => setVolume(Number(event.target.value))}
+            aria-label="Ses"
+          />
         </div>
 
         <audio
           ref={audioRef}
           key={currentTrack?.id ?? 'empty-player'}
-          className="audio-player"
-          controls
           src={audioSourceUrl || undefined}
           onEnded={goToNextTrack}
+          onLoadedMetadata={(event) => {
+            event.currentTarget.volume = volume
+            setDuration(event.currentTarget.duration)
+          }}
+          onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
           onError={() => setErrorMessage('Bu ses dosyası oynatılamadı.')}
-        >
-          Tarayıcı ses oynatıcı desteği yok.
-        </audio>
+        />
       </footer>
-    </main>
+    </div>
   )
 }
 
