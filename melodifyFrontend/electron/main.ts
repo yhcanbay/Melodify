@@ -6,6 +6,12 @@ import { Dirent, promises as fs } from 'node:fs'
 import type {
   DownloadRequest,
   DownloadResult,
+  ExportedLibrary,
+  ExportedTrack,
+  ExportResult,
+  ImportAnalysis,
+  ImportProgress,
+  ImportResult,
   LibrarySnapshot,
   MediaCommand,
   MediaControlState,
@@ -474,6 +480,181 @@ async function downloadWithYtDlp(request: DownloadRequest): Promise<DownloadResu
   }
 }
 
+function extractYouTubeId(fileName: string): string | null {
+  const match = fileName.match(/\[([^\]]+)\]\.[^.]+$/)
+  return match ? match[1] : null
+}
+
+async function exportLibrary(): Promise<ExportResult> {
+  const state = await readState()
+
+  if (!state.lastLibraryFolder || !(await pathExists(state.lastLibraryFolder))) {
+    throw new Error('Dışa aktarılacak bir kütüphane klasörü bulunamadı.')
+  }
+
+  const tracks = await collectMusicFiles(state.lastLibraryFolder)
+
+  const exportData: ExportedLibrary = {
+    version: '1.0',
+    exportedAt: new Date().toISOString(),
+    sourcePlatform: process.platform,
+    tracks: tracks.map((track) => {
+      const youtubeId = extractYouTubeId(track.fileName)
+
+      return {
+        title: track.title,
+        fileName: track.fileName,
+        extension: track.extension,
+        youtubeId,
+        webpageUrl: youtubeId ? `https://www.youtube.com/watch?v=${youtubeId}` : null,
+      }
+    }),
+  }
+
+  const saveResult = await dialog.showSaveDialog({
+    title: 'Kütüphaneyi dışa aktar',
+    defaultPath: path.join(state.lastLibraryFolder, 'melodify-library.json'),
+    filters: [{ name: 'Melodify Kütüphane', extensions: ['json'] }],
+  })
+
+  if (saveResult.canceled || !saveResult.filePath) {
+    return { canceled: true }
+  }
+
+  await fs.writeFile(saveResult.filePath, JSON.stringify(exportData, null, 2), 'utf8')
+
+  return { canceled: false, filePath: saveResult.filePath, trackCount: exportData.tracks.length }
+}
+
+async function analyzeImport(): Promise<ImportAnalysis> {
+  const state = await readState()
+
+  if (!state.lastLibraryFolder || !(await pathExists(state.lastLibraryFolder))) {
+    throw new Error('Önce bir kütüphane klasörü seçmelisin.')
+  }
+
+  const openResult = await dialog.showOpenDialog({
+    title: 'Kütüphane dosyasını içe aktar',
+    filters: [{ name: 'Melodify Kütüphane', extensions: ['json'] }],
+    properties: ['openFile'],
+  })
+
+  if (openResult.canceled || openResult.filePaths.length === 0) {
+    return { canceled: true, total: 0, found: 0, missing: [] }
+  }
+
+  const raw = await fs.readFile(openResult.filePaths[0], 'utf8')
+  const data = JSON.parse(raw) as ExportedLibrary
+
+  if (!data.version || !Array.isArray(data.tracks)) {
+    throw new Error('Geçersiz kütüphane dosyası formatı.')
+  }
+
+  const existingTracks = await collectMusicFiles(state.lastLibraryFolder)
+  const existingFileNames = new Set(existingTracks.map((track) => track.fileName.toLowerCase()))
+  const existingYouTubeIds = new Set(
+    existingTracks
+      .map((track) => extractYouTubeId(track.fileName))
+      .filter((id): id is string => id !== null),
+  )
+
+  const missing: ExportedTrack[] = []
+  let found = 0
+
+  for (const track of data.tracks) {
+    const fileNameMatch = existingFileNames.has(track.fileName.toLowerCase())
+    const idMatch = track.youtubeId ? existingYouTubeIds.has(track.youtubeId) : false
+
+    if (fileNameMatch || idMatch) {
+      found++
+    } else {
+      missing.push(track)
+    }
+  }
+
+  return { canceled: false, total: data.tracks.length, found, missing }
+}
+
+async function downloadMissingTracks(
+  missingTracks: ExportedTrack[],
+  cookiesFromBrowser?: string | null,
+  allowSearchForMissingUrl: boolean = false,
+): Promise<ImportResult> {
+  const state = await readState()
+
+  if (!state.lastLibraryFolder) {
+    throw new Error('Kütüphane klasörü bulunamadı.')
+  }
+
+  const downloadFolder = state.lastLibraryFolder
+  let downloaded = 0
+  let failed = 0
+  const errors: string[] = []
+
+  for (let i = 0; i < missingTracks.length; i++) {
+    const track = missingTracks[i]
+    const hasUrl = Boolean(track.webpageUrl || track.youtubeId)
+
+    // Önce URL'e sahip olup olmadığına bakılır
+    if (!hasUrl && !allowSearchForMissingUrl) {
+      failed++
+      errors.push(`${track.title}: İndirme bağlantısı bulunamadı (ad araması onaylanmadı).`)
+
+      win?.webContents.send('import:progress', {
+        current: i + 1,
+        total: missingTracks.length,
+        currentTrack: track.title,
+        status: 'failed',
+        error: 'İndirme bağlantısı bulunamadı.',
+      })
+      continue
+    }
+
+    // URL varsa doğrudan URL kullanılır; URL yoksa sadece URL'si bulunmayan bu parça için ad araması yapılır
+    const targetUrlOrQuery = hasUrl
+      ? (track.webpageUrl ?? `https://www.youtube.com/watch?v=${track.youtubeId}`)
+      : `ytsearch1:${track.title}`
+
+    const trackLabel = hasUrl ? track.title : `${track.title} (Ad araması)`
+
+    const progress: ImportProgress = {
+      current: i + 1,
+      total: missingTracks.length,
+      currentTrack: trackLabel,
+      status: 'downloading',
+    }
+
+    win?.webContents.send('import:progress', progress)
+
+    try {
+      await downloadWithYtDlp({
+        webpageUrl: targetUrlOrQuery,
+        downloadFolderPath: downloadFolder,
+        cookiesFromBrowser: cookiesFromBrowser ?? null,
+      })
+
+      downloaded++
+
+      win?.webContents.send('import:progress', {
+        ...progress,
+        status: 'completed',
+      })
+    } catch (error) {
+      failed++
+      const message = error instanceof Error ? error.message : 'Bilinmeyen hata'
+      errors.push(`${track.title}: ${message}`)
+
+      win?.webContents.send('import:progress', {
+        ...progress,
+        status: 'failed',
+        error: message,
+      })
+    }
+  }
+
+  return { downloaded, failed, errors }
+}
+
 async function loadTrackPayload(filePath: string): Promise<TrackPayload | null> {
   try {
     const data = await fs.readFile(filePath)
@@ -535,6 +716,17 @@ function registerIpcHandlers() {
   ipcMain.handle('library:load-last-download-folder', async () => loadLastDownloadFolder())
   ipcMain.handle('library:pick-download-folder', async () => pickDownloadFolder())
   ipcMain.handle('library:load-track-payload', async (_event, filePath: string) => loadTrackPayload(filePath))
+  ipcMain.handle('library:export', async () => exportLibrary())
+  ipcMain.handle('library:import-analyze', async () => analyzeImport())
+  ipcMain.handle(
+    'library:import-download',
+    async (
+      _event,
+      missingTracks: ExportedTrack[],
+      cookiesFromBrowser?: string | null,
+      allowSearchForMissingUrl?: boolean,
+    ) => downloadMissingTracks(missingTracks, cookiesFromBrowser, Boolean(allowSearchForMissingUrl)),
+  )
   ipcMain.handle('yt-dlp:search', async (_event, request: SearchRequest) => searchWithYtDlp(request))
   ipcMain.handle('yt-dlp:update', async () => updateYtDlp())
   ipcMain.on('media:state', (_event, state: MediaControlState) => {

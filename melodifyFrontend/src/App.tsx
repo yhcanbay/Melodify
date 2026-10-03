@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import './App.css'
-import type { DownloadResult, LibrarySnapshot, MediaCommand, MusicTrack, SearchResult } from './shared/melodify'
+import type { DownloadResult, ExportedTrack, ImportProgress, LibrarySnapshot, MediaCommand, MusicTrack, SearchResult } from './shared/melodify'
 
 const MIME_BY_EXTENSION: Record<string, string[]> = {
   aac: ['audio/aac', 'audio/aacp'],
@@ -29,7 +29,9 @@ type IconName =
   | 'previous'
   | 'queue'
   | 'repeat'
+  | 'search'
   | 'shuffle'
+  | 'upload'
   | 'volume'
 
 const COOKIE_BROWSER_OPTIONS = [
@@ -151,6 +153,13 @@ function Icon({ name }: { name: IconName }) {
       </>
     ),
     play: <path d="m8 5 11 7-11 7V5Z" />,
+    upload: (
+      <>
+        <path d="M12 17V3" />
+        <path d="m7 8 5-5 5 5" />
+        <path d="M5 21h14" />
+      </>
+    ),
     previous: (
       <>
         <path d="m18 19-9-7 9-7v14Z" />
@@ -171,6 +180,12 @@ function Icon({ name }: { name: IconName }) {
         <path d="M3 11V9a3 3 0 0 1 3-3h15" />
         <path d="m7 22-4-4 4-4" />
         <path d="M21 13v2a3 3 0 0 1-3 3H3" />
+      </>
+    ),
+    search: (
+      <>
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.3-4.3" />
       </>
     ),
     shuffle: (
@@ -226,9 +241,27 @@ function App() {
   const [duration, setDuration] = useState(0)
   const [volume, setVolume] = useState(0.7)
   const [draggedQueueTrackId, setDraggedQueueTrackId] = useState<string | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportMessage, setExportMessage] = useState('')
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [importMissing, setImportMissing] = useState<ExportedTrack[] | null>(null)
+  const [showSearchPrompt, setShowSearchPrompt] = useState(false)
+  const [importSummary, setImportSummary] = useState('')
+  const [isDownloadingImport, setIsDownloadingImport] = useState(false)
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null)
+  const [importError, setImportError] = useState('')
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const autoPlayRequestedRef = useRef(false)
   const pendingBlobUrlRef = useRef('')
+
+  const missingWithUrl = useMemo(
+    () => (importMissing ?? []).filter((track) => Boolean(track.webpageUrl || track.youtubeId)),
+    [importMissing],
+  )
+  const missingWithoutUrl = useMemo(
+    () => (importMissing ?? []).filter((track) => !track.webpageUrl && !track.youtubeId),
+    [importMissing],
+  )
 
   const playableLibraryTracks = useMemo(() => libraryTracks.filter(isTrackPlayable), [libraryTracks])
   const visibleLibraryTracks = useMemo(() => {
@@ -347,6 +380,12 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem('melodify.cookiesFromBrowser', cookiesFromBrowser)
   }, [cookiesFromBrowser])
+
+  useEffect(() => {
+    return window.melodifyApi.onImportProgress((progress) => {
+      setImportProgress(progress)
+    })
+  }, [])
 
   useEffect(() => {
     const audio = audioRef.current
@@ -686,6 +725,147 @@ function App() {
     }
   }
 
+  const handleExportLibrary = async () => {
+    try {
+      setIsExporting(true)
+      setExportMessage('')
+      setErrorMessage('')
+
+      const result = await window.melodifyApi.exportLibrary()
+
+      if (result.canceled) {
+        setExportMessage('Dışa aktarma iptal edildi.')
+        return
+      }
+
+      setExportMessage(`${result.trackCount} parça başarıyla dışa aktarıldı.`)
+    } catch (error) {
+      console.error(error)
+      const message = error instanceof Error ? error.message : 'Bilinmeyen hata'
+      setExportMessage(`Dışa aktarma başarısız: ${message}`)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleImportAnalyze = async () => {
+    try {
+      setIsAnalyzing(true)
+      setImportError('')
+      setImportSummary('')
+      setImportMissing(null)
+      setShowSearchPrompt(false)
+      setImportProgress(null)
+      setExportMessage('')
+
+      const analysis = await window.melodifyApi.importAnalyze()
+
+      if (analysis.canceled) {
+        setImportSummary('İçe aktarma iptal edildi.')
+        return
+      }
+
+      if (analysis.missing.length === 0) {
+        setImportSummary(`Tüm ${analysis.total} parça zaten kütüphanede mevcut. Eksik yok!`)
+        return
+      }
+
+      setImportMissing(analysis.missing)
+      setImportSummary(
+        `${analysis.total} parçadan ${analysis.found} tanesi mevcut, ${analysis.missing.length} tanesi eksik.`,
+      )
+    } catch (error) {
+      console.error(error)
+      const message = error instanceof Error ? error.message : 'Bilinmeyen hata'
+      setImportError(`İçe aktarma analizi başarısız: ${message}`)
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
+
+  const startImportDownload = async (
+    tracksToDownload: ExportedTrack[],
+    allowSearchForMissingUrl: boolean,
+  ) => {
+    setShowSearchPrompt(false)
+
+    if (!tracksToDownload || tracksToDownload.length === 0) {
+      return
+    }
+
+    try {
+      setIsDownloadingImport(true)
+      setImportError('')
+      setImportProgress(null)
+
+      const result = await window.melodifyApi.importDownloadMissing(
+        tracksToDownload,
+        cookiesFromBrowser || null,
+        allowSearchForMissingUrl,
+      )
+
+      const parts: string[] = []
+
+      if (result.downloaded > 0) {
+        parts.push(`${result.downloaded} parça başarıyla indirildi`)
+      }
+
+      if (result.failed > 0) {
+        parts.push(`${result.failed} parça indirilemedi`)
+      }
+
+      setImportSummary(parts.join(', ') + '.')
+      setImportMissing(null)
+      setImportProgress(null)
+
+      if (result.errors.length > 0) {
+        setImportError(result.errors.join('\n'))
+      }
+
+      // Refresh library
+      const refreshed = await window.melodifyApi.loadLastLibrary()
+
+      if (refreshed) {
+        syncSnapshot(refreshed, {
+          preserveTrackId: currentTrackId,
+          keepPlayback: true,
+        })
+      }
+    } catch (error) {
+      console.error(error)
+      const message = error instanceof Error ? error.message : 'Bilinmeyen hata'
+      setImportError(`İçe aktarma başarısız: ${message}`)
+    } finally {
+      setIsDownloadingImport(false)
+    }
+  }
+
+  const handleImportDownloadClick = () => {
+    if (!importMissing || importMissing.length === 0) {
+      return
+    }
+
+    // Önce URL'e sahip olup olmadığına bakılır
+    const withoutUrl = importMissing.filter((t) => !t.webpageUrl && !t.youtubeId)
+
+    if (withoutUrl.length > 0) {
+      // URL'si bulunmayan parçalar varsa sadece bunlar için kullanıcıya teklif göster
+      setShowSearchPrompt(true)
+    } else {
+      // Tüm parçaların URL'si mevcutsa teklif sormadan doğrudan indir
+      void startImportDownload(importMissing, false)
+    }
+  }
+
+  const dismissImport = () => {
+    setImportMissing(null)
+    setShowSearchPrompt(false)
+    setImportSummary('')
+    setImportError('')
+    setImportProgress(null)
+    setExportMessage('')
+  }
+
   const updateYtDlp = async () => {
     try {
       setIsUpdatingYtDlp(true)
@@ -951,9 +1131,174 @@ function App() {
                     <button type="button" onClick={toggleShuffle} disabled={playableLibraryTracks.length < 2}>
                       {isShuffled ? 'Karışığı kapat' : 'Karışık çal'}
                     </button>
+                    <button
+                      type="button"
+                      onClick={handleExportLibrary}
+                      disabled={isExporting || libraryTracks.length === 0}
+                    >
+                      <Icon name="upload" />
+                      {isExporting ? 'Aktarılıyor...' : 'Dışa Aktar'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleImportAnalyze}
+                      disabled={isAnalyzing || isDownloadingImport || !libraryFolder}
+                    >
+                      <Icon name="download" />
+                      {isAnalyzing ? 'Analiz ediliyor...' : 'İçe Aktar'}
+                    </button>
                   </div>
                 </div>
               </div>
+
+              {(exportMessage || importSummary || importError || importProgress) && (
+                <div className="import-export-status">
+                  {exportMessage && (
+                    <div className="transfer-message success">
+                      <span>{exportMessage}</span>
+                      <button type="button" onClick={dismissImport}>✕</button>
+                    </div>
+                  )}
+
+                  {importSummary && (
+                    <div className="transfer-message info">
+                      <span>{importSummary}</span>
+                      {!isDownloadingImport && (
+                        <button type="button" onClick={dismissImport}>✕</button>
+                      )}
+                    </div>
+                  )}
+
+                  {importMissing && importMissing.length > 0 && !isDownloadingImport && (
+                    <div className="import-actions">
+                      <div className="missing-header">
+                        <span className="missing-count">
+                          {importMissing.length} eksik parça bulundu
+                        </span>
+                        {missingWithoutUrl.length > 0 && (
+                          <span className="missing-warning-tag">
+                            ⚠️ {missingWithoutUrl.length} parçanın URL bağlantısı yok
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="missing-list">
+                        {importMissing.slice(0, 10).map((track, index) => {
+                          const hasUrl = Boolean(track.webpageUrl || track.youtubeId)
+                          return (
+                            <span
+                              key={`${track.fileName}-${index}`}
+                              className={`missing-track ${hasUrl ? 'has-url' : 'no-url'}`}
+                              title={hasUrl ? 'İndirme URL bağlantısı hazır' : 'Doğrudan URL yok (ad araması yapılabilir)'}
+                            >
+                              <span className="track-status-dot" />
+                              <span className="track-title-text">{track.title}</span>
+                              <span className="track-pill">{hasUrl ? 'URL Hazır' : 'URL Yok'}</span>
+                            </span>
+                          )
+                        })}
+                        {importMissing.length > 10 && (
+                          <span className="missing-track more-count">
+                            ...ve {importMissing.length - 10} parça daha
+                          </span>
+                        )}
+                      </div>
+
+                      {showSearchPrompt ? (
+                        <div className="search-proposal-card">
+                          <div className="proposal-title">
+                            <Icon name="search" />
+                            <strong>URL'si Bulunmayan Parçalar İçin İndirme Teklifi</strong>
+                          </div>
+                          <p className="proposal-description">
+                            Aşağıdaki <strong>{missingWithoutUrl.length}</strong> parçanın doğrudan YouTube URL bağlantısı bulunmuyor:
+                          </p>
+                          <div className="proposal-track-tags">
+                            {missingWithoutUrl.slice(0, 6).map((track, idx) => (
+                              <span key={idx} className="proposal-track-tag">
+                                {track.title}
+                              </span>
+                            ))}
+                            {missingWithoutUrl.length > 6 && (
+                              <span className="proposal-track-tag more">
+                                +{missingWithoutUrl.length - 6} parça daha
+                              </span>
+                            )}
+                          </div>
+                          <p className="proposal-question">
+                            Bu parçalar YouTube üzerinde <strong>şarkı adıyla aratılarak (ytsearch)</strong> ilk sıradaki sonuç indirilsin mi?
+                            <br />
+                            <small className="proposal-note">
+                              * Bu arama işlemi yalnızca bağlantısı (URL) bulunmayan bu {missingWithoutUrl.length} dosya için uygulanır.
+                            </small>
+                          </p>
+                          <div className="proposal-buttons">
+                            <button
+                              type="button"
+                              className="spotify-primary"
+                              onClick={() => void startImportDownload(importMissing, true)}
+                            >
+                              Evet, Ad Aramasıyla İndir (Tümünü İndir)
+                            </button>
+                            {missingWithUrl.length > 0 && (
+                              <button
+                                type="button"
+                                className="proposal-secondary-btn"
+                                onClick={() => void startImportDownload(missingWithUrl, false)}
+                              >
+                                Hayır, Yalnızca URL'si Olanları İndir ({missingWithUrl.length} parça)
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="proposal-cancel-btn"
+                              onClick={() => setShowSearchPrompt(false)}
+                            >
+                              Vazgeç
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="import-action-buttons">
+                          <button
+                            type="button"
+                            className="spotify-primary"
+                            onClick={handleImportDownloadClick}
+                          >
+                            Eksikleri İndir ({importMissing.length} parça)
+                          </button>
+                          <button type="button" onClick={dismissImport}>
+                            Vazgeç
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {importProgress && isDownloadingImport && (
+                    <div className="import-progress">
+                      <div className="import-progress-header">
+                        <strong>
+                          {importProgress.current}/{importProgress.total}
+                        </strong>
+                        <span>
+                          {importProgress.status === 'downloading' && `İndiriliyor: ${importProgress.currentTrack}`}
+                          {importProgress.status === 'completed' && `✓ ${importProgress.currentTrack}`}
+                          {importProgress.status === 'failed' && `✗ ${importProgress.currentTrack}`}
+                        </span>
+                      </div>
+                      <div className="import-progress-bar">
+                        <div
+                          className="import-progress-fill"
+                          style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {importError && <div className="inline-error">{importError}</div>}
+                </div>
+              )}
 
               <div className="library-tools">
                 <label>

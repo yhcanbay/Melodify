@@ -75,3 +75,43 @@ export type MediaControlState = {
   isPlaying: boolean
   title?: string
 }
+
+export type ExportedTrack = {
+  title: string
+  fileName: string
+  extension: string
+  youtubeId: string | null
+  webpageUrl: string | null
+}
+
+export type ExportedLibrary = {
+  version: string
+  exportedAt: string
+  sourcePlatform: string
+  tracks: ExportedTrack[]
+}
+
+export type ExportResult =
+  | { canceled: true }
+  | { canceled: false; filePath: string; trackCount: number }
+
+export type ImportAnalysis = {
+  canceled: boolean
+  total: number
+  found: number
+  missing: ExportedTrack[]
+}
+
+export type ImportProgress = {
+  current: number
+  total: number
+  currentTrack: string
+  status: 'downloading' | 'completed' | 'failed'
+  error?: string
+}
+
+export type ImportResult = {
+  downloaded: number
+  failed: number
+  errors: string[]
+}

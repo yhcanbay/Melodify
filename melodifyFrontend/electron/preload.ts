@@ -2,6 +2,11 @@ import { ipcRenderer, contextBridge } from 'electron'
 import type {
   DownloadRequest,
   DownloadResult,
+  ExportedTrack,
+  ExportResult,
+  ImportAnalysis,
+  ImportProgress,
+  ImportResult,
   LibrarySnapshot,
   MediaCommand,
   MediaControlState,
@@ -26,6 +31,19 @@ contextBridge.exposeInMainWorld('melodifyApi', {
     ipcRenderer.invoke('yt-dlp:download', request) as Promise<DownloadResult>,
   loadTrackPayload: (filePath: string) =>
     ipcRenderer.invoke('library:load-track-payload', filePath) as Promise<TrackPayload | null>,
+  exportLibrary: () => ipcRenderer.invoke('library:export') as Promise<ExportResult>,
+  importAnalyze: () => ipcRenderer.invoke('library:import-analyze') as Promise<ImportAnalysis>,
+  importDownloadMissing: (
+    missingTracks: ExportedTrack[],
+    cookiesFromBrowser?: string | null,
+    allowSearchForMissingUrl?: boolean,
+  ) =>
+    ipcRenderer.invoke(
+      'library:import-download',
+      missingTracks,
+      cookiesFromBrowser,
+      allowSearchForMissingUrl,
+    ) as Promise<ImportResult>,
   setMediaControlState: (state: MediaControlState) => ipcRenderer.send('media:state', state),
   onMediaCommand: (callback: (command: MediaCommand) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, command: MediaCommand) => {
@@ -38,4 +56,16 @@ contextBridge.exposeInMainWorld('melodifyApi', {
       ipcRenderer.removeListener('media:command', listener)
     }
   },
+  onImportProgress: (callback: (progress: ImportProgress) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, progress: ImportProgress) => {
+      callback(progress)
+    }
+
+    ipcRenderer.on('import:progress', listener)
+
+    return () => {
+      ipcRenderer.removeListener('import:progress', listener)
+    }
+  },
 })
+

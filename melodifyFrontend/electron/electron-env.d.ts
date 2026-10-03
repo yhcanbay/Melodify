@@ -46,9 +46,19 @@ interface Window {
     loadTrackPayload: (
       filePath: string,
     ) => Promise<import('../src/shared/melodify').TrackPayload | null>
+    exportLibrary: () => Promise<import('../src/shared/melodify').ExportResult>
+    importAnalyze: () => Promise<import('../src/shared/melodify').ImportAnalysis>
+    importDownloadMissing: (
+      missingTracks: import('../src/shared/melodify').ExportedTrack[],
+      cookiesFromBrowser?: string | null,
+      allowSearchForMissingUrl?: boolean,
+    ) => Promise<import('../src/shared/melodify').ImportResult>
     setMediaControlState: (state: import('../src/shared/melodify').MediaControlState) => void
     onMediaCommand: (
       callback: (command: import('../src/shared/melodify').MediaCommand) => void,
+    ) => () => void
+    onImportProgress: (
+      callback: (progress: import('../src/shared/melodify').ImportProgress) => void,
     ) => () => void
   }
 }

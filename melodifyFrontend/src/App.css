@@ -1034,3 +1034,335 @@ input[type="range"] {
     grid-template-columns: 1fr;
   }
 }
+
+.banner-actions button .ui-icon {
+  display: inline;
+  width: 16px;
+  height: 16px;
+  vertical-align: -2px;
+  margin-right: 6px;
+}
+
+.import-export-status {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+}
+
+.transfer-message {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 0.92rem;
+}
+
+.transfer-message.success {
+  background: rgba(29, 185, 84, 0.12);
+  border: 1px solid rgba(29, 185, 84, 0.3);
+  color: #6ee7a0;
+}
+
+.transfer-message.info {
+  background: rgba(96, 165, 250, 0.1);
+  border: 1px solid rgba(96, 165, 250, 0.25);
+  color: #93c5fd;
+}
+
+.transfer-message button {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-sub);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.transfer-message button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.import-actions {
+  display: grid;
+  gap: 14px;
+}
+
+.missing-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.missing-count {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.missing-warning-tag {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.missing-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.missing-track {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-sub);
+  font-size: 0.82rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  max-width: 100%;
+}
+
+.missing-track .track-title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+}
+
+.missing-track.has-url .track-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  flex: 0 0 auto;
+}
+
+.missing-track.no-url {
+  border-color: rgba(245, 158, 11, 0.25);
+  background: rgba(245, 158, 11, 0.06);
+}
+
+.missing-track.no-url .track-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f59e0b;
+  flex: 0 0 auto;
+}
+
+.missing-track .track-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-sub);
+}
+
+.missing-track.has-url .track-pill {
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.missing-track.no-url .track-pill {
+  color: #fde047;
+  background: rgba(245, 158, 11, 0.2);
+}
+
+.missing-track.more-count {
+  font-style: italic;
+  opacity: 0.8;
+}
+
+.search-proposal-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 10px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  margin-top: 4px;
+}
+
+.proposal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fbbf24;
+  font-size: 0.95rem;
+}
+
+.proposal-title .ui-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.proposal-description {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-main);
+}
+
+.proposal-track-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.proposal-track-tag {
+  font-size: 0.8rem;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: #fde68a;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proposal-track-tag.more {
+  border-style: dashed;
+  color: #f59e0b;
+}
+
+.proposal-question {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-main);
+  line-height: 1.45;
+}
+
+.proposal-note {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-sub);
+  font-size: 0.78rem;
+}
+
+.proposal-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.proposal-secondary-btn {
+  padding: 8px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.proposal-secondary-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.proposal-cancel-btn {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-sub);
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: color 160ms ease;
+}
+
+.proposal-cancel-btn:hover {
+  color: #ffffff;
+}
+
+.import-action-buttons {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.import-action-buttons button:not(.spotify-primary) {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-sub);
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.import-action-buttons button:not(.spotify-primary):hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+.import-progress {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 8px;
+  background: rgba(29, 185, 84, 0.06);
+  border: 1px solid rgba(29, 185, 84, 0.15);
+}
+
+.import-progress-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.import-progress-header strong {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 0.92rem;
+}
+
+.import-progress-header span {
+  color: var(--text-sub);
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-progress-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.import-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), #4ade80);
+  transition: width 300ms ease;
+}

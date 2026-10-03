@@ -1,10 +1,9 @@
-import { spawn } from "node:child_process";
-import { app, BrowserWindow, nativeImage, ipcMain, dialog } from "electron";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
-import { promises } from "node:fs";
-const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
-const SUPPORTED_EXTENSIONS = /* @__PURE__ */ new Set([
+import { spawn as Y } from "node:child_process";
+import { app as f, BrowserWindow as N, nativeImage as z, ipcMain as p, dialog as g } from "electron";
+import { fileURLToPath as K } from "node:url";
+import c from "node:path";
+import { promises as m } from "node:fs";
+const C = c.dirname(K(import.meta.url)), J = /* @__PURE__ */ new Set([
   ".aac",
   ".flac",
   ".m4a",
@@ -15,8 +14,7 @@ const SUPPORTED_EXTENSIONS = /* @__PURE__ */ new Set([
   ".opus",
   ".wav",
   ".webm"
-]);
-const MIME_BY_EXTENSION = {
+]), H = {
   ".aac": "audio/aac",
   ".flac": "audio/flac",
   ".m4a": "audio/mp4",
@@ -27,300 +25,249 @@ const MIME_BY_EXTENSION = {
   ".opus": "audio/opus",
   ".wav": "audio/wav",
   ".webm": "audio/webm"
+}, q = /* @__PURE__ */ new Set(["chrome", "chromium", "edge", "firefox", "brave", "opera"]), X = "melodify-state.json", G = "melodify-icon.png";
+process.env.APP_ROOT = c.join(C, "..");
+const v = process.env.VITE_DEV_SERVER_URL, Ft = c.join(process.env.APP_ROOT, "dist-electron"), R = c.join(process.env.APP_ROOT, "dist");
+process.env.VITE_PUBLIC = v ? c.join(process.env.APP_ROOT, "public") : R;
+let r;
+const $ = f.requestSingleInstanceLock();
+$ || f.quit();
+function L() {
+  return c.join(f.getPath("userData"), X);
+}
+function B(t) {
+  return c.join(process.env.VITE_PUBLIC, t);
+}
+function y(t) {
+  return z.createFromPath(B(t));
+}
+const b = {
+  next: y("thumbar-next.png"),
+  pause: y("thumbar-pause.png"),
+  play: y("thumbar-play.png"),
+  previous: y("thumbar-previous.png")
 };
-const SUPPORTED_COOKIE_BROWSERS = /* @__PURE__ */ new Set(["chrome", "chromium", "edge", "firefox", "brave", "opera"]);
-const STATE_FILE_NAME = "melodify-state.json";
-const APP_ICON_FILE_NAME = "melodify-icon.png";
-process.env.APP_ROOT = path.join(__dirname$1, "..");
-const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
-const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
-const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
-process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
-let win;
-const isPrimaryInstance = app.requestSingleInstanceLock();
-if (!isPrimaryInstance) {
-  app.quit();
+function S(t) {
+  r == null || r.webContents.send("media:command", t);
 }
-function getStateFilePath() {
-  return path.join(app.getPath("userData"), STATE_FILE_NAME);
-}
-function getPublicAssetPath(fileName) {
-  return path.join(process.env.VITE_PUBLIC, fileName);
-}
-function createThumbarIcon(fileName) {
-  return nativeImage.createFromPath(getPublicAssetPath(fileName));
-}
-const thumbarIcons = {
-  next: createThumbarIcon("thumbar-next.png"),
-  pause: createThumbarIcon("thumbar-pause.png"),
-  play: createThumbarIcon("thumbar-play.png"),
-  previous: createThumbarIcon("thumbar-previous.png")
-};
-function sendMediaCommand(command) {
-  win == null ? void 0 : win.webContents.send("media:command", command);
-}
-function updateTaskbarMediaControls(state) {
-  if (!win || process.platform !== "win32") {
+function U(t) {
+  if (!r || process.platform !== "win32")
     return;
-  }
-  const flags = ["enabled"];
-  win.setThumbarButtons([
+  const e = ["enabled"];
+  r.setThumbarButtons([
     {
       tooltip: "Previous track",
-      icon: thumbarIcons.previous,
-      click: () => sendMediaCommand("previous"),
-      flags
+      icon: b.previous,
+      click: () => S("previous"),
+      flags: e
     },
     {
-      tooltip: state.isPlaying ? "Pause" : "Play",
-      icon: state.isPlaying ? thumbarIcons.pause : thumbarIcons.play,
-      click: () => sendMediaCommand("play-pause"),
-      flags
+      tooltip: t.isPlaying ? "Pause" : "Play",
+      icon: t.isPlaying ? b.pause : b.play,
+      click: () => S("play-pause"),
+      flags: e
     },
     {
       tooltip: "Next track",
-      icon: thumbarIcons.next,
-      click: () => sendMediaCommand("next"),
-      flags
+      icon: b.next,
+      click: () => S("next"),
+      flags: e
     }
   ]);
 }
-async function readState() {
+async function h() {
   try {
-    const raw = await promises.readFile(getStateFilePath(), "utf8");
-    const parsed = JSON.parse(raw);
+    const t = await m.readFile(L(), "utf8"), e = JSON.parse(t);
     return {
-      lastLibraryFolder: typeof parsed.lastLibraryFolder === "string" ? parsed.lastLibraryFolder : void 0,
-      lastDownloadFolder: typeof parsed.lastDownloadFolder === "string" ? parsed.lastDownloadFolder : void 0
+      lastLibraryFolder: typeof e.lastLibraryFolder == "string" ? e.lastLibraryFolder : void 0,
+      lastDownloadFolder: typeof e.lastDownloadFolder == "string" ? e.lastDownloadFolder : void 0
     };
   } catch {
     return {};
   }
 }
-async function writeState(nextState) {
-  await promises.mkdir(path.dirname(getStateFilePath()), { recursive: true });
-  await promises.writeFile(getStateFilePath(), JSON.stringify(nextState, null, 2), "utf8");
+async function Q(t) {
+  await m.mkdir(c.dirname(L()), { recursive: !0 }), await m.writeFile(L(), JSON.stringify(t, null, 2), "utf8");
 }
-async function updateState(patch) {
-  const currentState = await readState();
-  await writeState({ ...currentState, ...patch });
+async function E(t) {
+  const e = await h();
+  await Q({ ...e, ...t });
 }
-async function pathExists(targetPath) {
+async function _(t) {
   try {
-    await promises.access(targetPath);
-    return true;
+    return await m.access(t), !0;
   } catch {
-    return false;
+    return !1;
   }
 }
-function isSupportedMusicFile(fileName) {
-  return SUPPORTED_EXTENSIONS.has(path.extname(fileName).toLowerCase());
+function Z(t) {
+  return J.has(c.extname(t).toLowerCase());
 }
-function getMimeType(filePath) {
-  return MIME_BY_EXTENSION[path.extname(filePath).toLowerCase()] ?? "application/octet-stream";
+function tt(t) {
+  return H[c.extname(t).toLowerCase()] ?? "application/octet-stream";
 }
-function formatDuration(seconds) {
-  if (!seconds || Number.isNaN(seconds)) {
+function et(t) {
+  if (!t || Number.isNaN(t))
     return "Bilinmiyor";
-  }
-  const totalSeconds = Math.max(0, Math.floor(seconds));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor(totalSeconds % 3600 / 60);
-  const remainingSeconds = totalSeconds % 60;
-  if (hours > 0) {
-    return `${hours}:${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
-  }
-  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+  const e = Math.max(0, Math.floor(t)), s = Math.floor(e / 3600), n = Math.floor(e % 3600 / 60), i = e % 60;
+  return s > 0 ? `${s}:${String(n).padStart(2, "0")}:${String(i).padStart(2, "0")}` : `${n}:${String(i).padStart(2, "0")}`;
 }
-function normalizeDownloadFolder(folderPath) {
-  return path.resolve(folderPath);
+function D(t) {
+  return c.resolve(t);
 }
-function normalizeCookieBrowser(browserName) {
-  const value = browserName == null ? void 0 : browserName.trim().toLowerCase();
-  if (!value) {
-    return null;
-  }
-  return SUPPORTED_COOKIE_BROWSERS.has(value) ? value : null;
+function at(t) {
+  const e = t == null ? void 0 : t.trim().toLowerCase();
+  return e && q.has(e) ? e : null;
 }
-function runCommand(command, args) {
-  return new Promise((resolve, reject) => {
-    var _a, _b;
-    const child = spawn(command, args, {
-      shell: false,
-      windowsHide: true
+function P(t, e) {
+  return new Promise((s, n) => {
+    var u, d;
+    const i = Y(t, e, {
+      shell: !1,
+      windowsHide: !0
     });
-    let stdout = "";
-    let stderr = "";
-    (_a = child.stdout) == null ? void 0 : _a.on("data", (chunk) => {
-      stdout += chunk.toString("utf8");
-    });
-    (_b = child.stderr) == null ? void 0 : _b.on("data", (chunk) => {
-      stderr += chunk.toString("utf8");
-    });
-    child.on("error", (error) => {
-      reject(error);
-    });
-    child.on("close", (code) => {
-      if (code === 0) {
-        resolve({ stdout, stderr });
+    let a = "", l = "";
+    (u = i.stdout) == null || u.on("data", (o) => {
+      a += o.toString("utf8");
+    }), (d = i.stderr) == null || d.on("data", (o) => {
+      l += o.toString("utf8");
+    }), i.on("error", (o) => {
+      n(o);
+    }), i.on("close", (o) => {
+      if (o === 0) {
+        s({ stdout: a, stderr: l });
         return;
       }
-      reject(new Error(stderr.trim() || `Komut hata ile sonlandi. Kod: ${code ?? "bilinmiyor"}`));
+      n(new Error(l.trim() || `Komut hata ile sonlandi. Kod: ${o ?? "bilinmiyor"}`));
     });
   });
 }
-function getYouTubeWatchUrl(videoIdOrUrl) {
-  if (videoIdOrUrl.startsWith("http://") || videoIdOrUrl.startsWith("https://")) {
-    return videoIdOrUrl;
-  }
-  return `https://www.youtube.com/watch?v=${videoIdOrUrl}`;
+function nt(t) {
+  return t.startsWith("http://") || t.startsWith("https://") ? t : `https://www.youtube.com/watch?v=${t}`;
 }
-function formatCommandOutput(stdout, stderr) {
-  return [stdout.trim(), stderr.trim()].filter(Boolean).join("\n");
+function ot(t, e) {
+  return [t.trim(), e.trim()].filter(Boolean).join(`
+`);
 }
-async function getYtDlpVersion() {
-  const { stdout } = await runCommand("yt-dlp", ["--version"]);
-  return stdout.trim();
+async function O() {
+  const { stdout: t } = await P("yt-dlp", ["--version"]);
+  return t.trim();
 }
-async function updateYtDlp() {
-  const previousVersion = await getYtDlpVersion();
-  const { stdout, stderr } = await runCommand("yt-dlp", ["-U"]);
-  const currentVersion = await getYtDlpVersion();
+async function rt() {
+  const t = await O(), { stdout: e, stderr: s } = await P("yt-dlp", ["-U"]), n = await O();
   return {
-    previousVersion,
-    currentVersion,
-    updated: previousVersion !== currentVersion,
-    output: formatCommandOutput(stdout, stderr)
+    previousVersion: t,
+    currentVersion: n,
+    updated: t !== n,
+    output: ot(e, s)
   };
 }
-async function collectMusicFiles(rootFolder) {
-  const tracks = [];
-  async function visitDirectory(folderPath) {
-    let entries;
+async function x(t) {
+  const e = [];
+  async function s(n) {
+    let i;
     try {
-      entries = await promises.readdir(folderPath, { withFileTypes: true });
+      i = await m.readdir(n, { withFileTypes: !0 });
     } catch {
       return;
     }
-    entries.sort((left, right) => left.name.localeCompare(right.name, void 0, { numeric: true, sensitivity: "base" }));
-    for (const entry of entries) {
-      if (entry.name.startsWith(".")) {
+    i.sort((a, l) => a.name.localeCompare(l.name, void 0, { numeric: !0, sensitivity: "base" }));
+    for (const a of i) {
+      if (a.name.startsWith("."))
+        continue;
+      const l = c.join(n, a.name);
+      if (a.isSymbolicLink())
+        continue;
+      if (a.isDirectory()) {
+        await s(l);
         continue;
       }
-      const absolutePath = path.join(folderPath, entry.name);
-      if (entry.isSymbolicLink()) {
+      if (!a.isFile() || !Z(a.name))
         continue;
-      }
-      if (entry.isDirectory()) {
-        await visitDirectory(absolutePath);
-        continue;
-      }
-      if (!entry.isFile() || !isSupportedMusicFile(entry.name)) {
-        continue;
-      }
-      const extension = path.extname(entry.name);
-      const fileStat = await promises.stat(absolutePath);
-      tracks.push({
-        id: absolutePath,
-        title: path.basename(entry.name, extension),
-        fileName: entry.name,
-        filePath: absolutePath,
-        extension: extension.replace(/^\./, "").toLowerCase(),
-        modifiedTimeMs: fileStat.mtimeMs
+      const u = c.extname(a.name), d = await m.stat(l);
+      e.push({
+        id: l,
+        title: c.basename(a.name, u),
+        fileName: a.name,
+        filePath: l,
+        extension: u.replace(/^\./, "").toLowerCase(),
+        modifiedTimeMs: d.mtimeMs
       });
     }
   }
-  await visitDirectory(rootFolder);
-  tracks.sort(
-    (left, right) => left.filePath.localeCompare(right.filePath, void 0, {
-      numeric: true,
+  return await s(t), e.sort(
+    (n, i) => n.filePath.localeCompare(i.filePath, void 0, {
+      numeric: !0,
       sensitivity: "base"
     })
-  );
-  return tracks;
+  ), e;
 }
-async function buildLibrarySnapshot(folderPath) {
+async function j(t) {
   return {
-    folderPath,
-    tracks: await collectMusicFiles(folderPath)
+    folderPath: t,
+    tracks: await x(t)
   };
 }
-async function loadLastLibrarySnapshot() {
-  const state = await readState();
-  if (!state.lastLibraryFolder) {
-    return null;
-  }
-  if (!await pathExists(state.lastLibraryFolder)) {
-    return null;
-  }
-  return buildLibrarySnapshot(state.lastLibraryFolder);
+async function it() {
+  const t = await h();
+  return !t.lastLibraryFolder || !await _(t.lastLibraryFolder) ? null : j(t.lastLibraryFolder);
 }
-async function loadLastDownloadFolder() {
-  const state = await readState();
-  return state.lastDownloadFolder ?? null;
+async function st() {
+  return (await h()).lastDownloadFolder ?? null;
 }
-async function pickMusicFolder() {
-  const result = await dialog.showOpenDialog({
+async function lt() {
+  const t = await g.showOpenDialog({
     title: "Müzik klasörü seç",
     properties: ["openDirectory"]
   });
-  if (result.canceled || result.filePaths.length === 0) {
-    return { canceled: true };
-  }
-  const folderPath = result.filePaths[0];
-  const snapshot = await buildLibrarySnapshot(folderPath);
-  await updateState({ lastLibraryFolder: folderPath });
-  return {
-    canceled: false,
-    snapshot
+  if (t.canceled || t.filePaths.length === 0)
+    return { canceled: !0 };
+  const e = t.filePaths[0], s = await j(e);
+  return await E({ lastLibraryFolder: e }), {
+    canceled: !1,
+    snapshot: s
   };
 }
-async function pickDownloadFolder() {
-  const result = await dialog.showOpenDialog({
+async function ct() {
+  const t = await g.showOpenDialog({
     title: "İndirme klasörü seç",
     properties: ["openDirectory"]
   });
-  if (result.canceled || result.filePaths.length === 0) {
-    return { canceled: true };
-  }
-  const folderPath = normalizeDownloadFolder(result.filePaths[0]);
-  await updateState({ lastDownloadFolder: folderPath });
-  return {
-    canceled: false,
-    folderPath
+  if (t.canceled || t.filePaths.length === 0)
+    return { canceled: !0 };
+  const e = D(t.filePaths[0]);
+  return await E({ lastDownloadFolder: e }), {
+    canceled: !1,
+    folderPath: e
   };
 }
-async function searchWithYtDlp(request) {
-  const query = request.query.trim();
-  if (!query) {
+async function ut(t) {
+  const e = t.query.trim();
+  if (!e)
     return [];
-  }
-  const limit = Math.max(1, Math.min(20, request.limit ?? 10));
-  const { stdout } = await runCommand("yt-dlp", [
+  const s = Math.max(1, Math.min(20, t.limit ?? 10)), { stdout: n } = await P("yt-dlp", [
     "--flat-playlist",
     "--dump-single-json",
     "--no-warnings",
-    `ytsearch${limit}:${query}`
+    `ytsearch${s}:${e}`
   ]);
-  const parsed = JSON.parse(stdout);
-  return (parsed.entries ?? []).filter((entry) => Boolean(entry.id || entry.url || entry.webpage_url)).map((entry, index) => {
-    var _a, _b;
-    const idOrUrl = entry.id ?? entry.url ?? `${index}`;
+  return (JSON.parse(n).entries ?? []).filter((a) => !!(a.id || a.url || a.webpage_url)).map((a, l) => {
+    var d, o;
+    const u = a.id ?? a.url ?? `${l}`;
     return {
-      id: idOrUrl,
-      title: entry.title ?? "Başlıksız sonuç",
-      uploader: entry.uploader ?? entry.channel ?? "Bilinmiyor",
-      durationText: formatDuration(entry.duration),
-      webpageUrl: entry.webpage_url ?? getYouTubeWatchUrl(idOrUrl),
-      thumbnailUrl: entry.thumbnail ?? ((_b = (_a = entry.thumbnails) == null ? void 0 : _a[0]) == null ? void 0 : _b.url) ?? ""
+      id: u,
+      title: a.title ?? "Başlıksız sonuç",
+      uploader: a.uploader ?? a.channel ?? "Bilinmiyor",
+      durationText: et(a.duration),
+      webpageUrl: a.webpage_url ?? nt(u),
+      thumbnailUrl: a.thumbnail ?? ((o = (d = a.thumbnails) == null ? void 0 : d[0]) == null ? void 0 : o.url) ?? ""
     };
   });
 }
-async function downloadWithYtDlp(request) {
-  const downloadFolderPath = normalizeDownloadFolder(request.downloadFolderPath);
-  const cookiesBrowser = normalizeCookieBrowser(request.cookiesFromBrowser);
-  await promises.mkdir(downloadFolderPath, { recursive: true });
-  const args = [
+async function A(t) {
+  const e = D(t.downloadFolderPath), s = at(t.cookiesFromBrowser);
+  await m.mkdir(e, { recursive: !0 });
+  const n = [
     "--no-warnings",
     "--newline",
     "--extract-audio",
@@ -330,113 +277,179 @@ async function downloadWithYtDlp(request) {
     "0",
     "--restrict-filenames",
     "--paths",
-    `home:${downloadFolderPath}`,
+    `home:${e}`,
     "--output",
     "%(title)s [%(id)s].%(ext)s",
     "--print",
     "after_move:filepath"
   ];
-  if (cookiesBrowser) {
-    args.push("--cookies-from-browser", cookiesBrowser);
-  }
-  args.push(request.webpageUrl);
-  const { stdout } = await runCommand("yt-dlp", args);
-  const outputLines = stdout.split("\n").map((line) => line.trim()).filter(Boolean);
-  const lastOutputLine = outputLines[outputLines.length - 1];
-  if (!lastOutputLine) {
+  s && n.push("--cookies-from-browser", s), n.push(t.webpageUrl);
+  const { stdout: i } = await P("yt-dlp", n), a = i.split(`
+`).map((u) => u.trim()).filter(Boolean), l = a[a.length - 1];
+  if (!l)
     throw new Error("Yukleme tamamlandi ama cikis dosyasi bulunamadi.");
-  }
   return {
-    fileName: path.basename(lastOutputLine),
-    outputPath: lastOutputLine
+    fileName: c.basename(l),
+    outputPath: l
   };
 }
-async function loadTrackPayload(filePath) {
+function V(t) {
+  const e = t.match(/\[([^\]]+)\]\.[^.]+$/);
+  return e ? e[1] : null;
+}
+async function dt() {
+  const t = await h();
+  if (!t.lastLibraryFolder || !await _(t.lastLibraryFolder))
+    throw new Error("Dışa aktarılacak bir kütüphane klasörü bulunamadı.");
+  const e = await x(t.lastLibraryFolder), s = {
+    version: "1.0",
+    exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    sourcePlatform: process.platform,
+    tracks: e.map((i) => {
+      const a = V(i.fileName);
+      return {
+        title: i.title,
+        fileName: i.fileName,
+        extension: i.extension,
+        youtubeId: a,
+        webpageUrl: a ? `https://www.youtube.com/watch?v=${a}` : null
+      };
+    })
+  }, n = await g.showSaveDialog({
+    title: "Kütüphaneyi dışa aktar",
+    defaultPath: c.join(t.lastLibraryFolder, "melodify-library.json"),
+    filters: [{ name: "Melodify Kütüphane", extensions: ["json"] }]
+  });
+  return n.canceled || !n.filePath ? { canceled: !0 } : (await m.writeFile(n.filePath, JSON.stringify(s, null, 2), "utf8"), { canceled: !1, filePath: n.filePath, trackCount: s.tracks.length });
+}
+async function pt() {
+  const t = await h();
+  if (!t.lastLibraryFolder || !await _(t.lastLibraryFolder))
+    throw new Error("Önce bir kütüphane klasörü seçmelisin.");
+  const e = await g.showOpenDialog({
+    title: "Kütüphane dosyasını içe aktar",
+    filters: [{ name: "Melodify Kütüphane", extensions: ["json"] }],
+    properties: ["openFile"]
+  });
+  if (e.canceled || e.filePaths.length === 0)
+    return { canceled: !0, total: 0, found: 0, missing: [] };
+  const s = await m.readFile(e.filePaths[0], "utf8"), n = JSON.parse(s);
+  if (!n.version || !Array.isArray(n.tracks))
+    throw new Error("Geçersiz kütüphane dosyası formatı.");
+  const i = await x(t.lastLibraryFolder), a = new Set(i.map((o) => o.fileName.toLowerCase())), l = new Set(
+    i.map((o) => V(o.fileName)).filter((o) => o !== null)
+  ), u = [];
+  let d = 0;
+  for (const o of n.tracks) {
+    const w = a.has(o.fileName.toLowerCase()), F = o.youtubeId ? l.has(o.youtubeId) : !1;
+    w || F ? d++ : u.push(o);
+  }
+  return { canceled: !1, total: n.tracks.length, found: d, missing: u };
+}
+async function mt(t, e, s = !1) {
+  const n = await h();
+  if (!n.lastLibraryFolder)
+    throw new Error("Kütüphane klasörü bulunamadı.");
+  const i = n.lastLibraryFolder;
+  let a = 0, l = 0;
+  const u = [];
+  for (let d = 0; d < t.length; d++) {
+    const o = t[d], w = !!(o.webpageUrl || o.youtubeId);
+    if (!w && !s) {
+      l++, u.push(`${o.title}: İndirme bağlantısı bulunamadı (ad araması onaylanmadı).`), r == null || r.webContents.send("import:progress", {
+        current: d + 1,
+        total: t.length,
+        currentTrack: o.title,
+        status: "failed",
+        error: "İndirme bağlantısı bulunamadı."
+      });
+      continue;
+    }
+    const F = w ? o.webpageUrl ?? `https://www.youtube.com/watch?v=${o.youtubeId}` : `ytsearch1:${o.title}`, W = w ? o.title : `${o.title} (Ad araması)`, k = {
+      current: d + 1,
+      total: t.length,
+      currentTrack: W,
+      status: "downloading"
+    };
+    r == null || r.webContents.send("import:progress", k);
+    try {
+      await A({
+        webpageUrl: F,
+        downloadFolderPath: i,
+        cookiesFromBrowser: e ?? null
+      }), a++, r == null || r.webContents.send("import:progress", {
+        ...k,
+        status: "completed"
+      });
+    } catch (T) {
+      l++;
+      const M = T instanceof Error ? T.message : "Bilinmeyen hata";
+      u.push(`${o.title}: ${M}`), r == null || r.webContents.send("import:progress", {
+        ...k,
+        status: "failed",
+        error: M
+      });
+    }
+  }
+  return { downloaded: a, failed: l, errors: u };
+}
+async function ft(t) {
   try {
-    const data = await promises.readFile(filePath);
+    const e = await m.readFile(t);
     return {
-      fileName: path.basename(filePath),
-      mimeType: getMimeType(filePath),
-      data: data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
+      fileName: c.basename(t),
+      mimeType: tt(t),
+      data: e.buffer.slice(e.byteOffset, e.byteOffset + e.byteLength)
     };
   } catch {
     return null;
   }
 }
-function createWindow() {
-  win = new BrowserWindow({
+function I() {
+  r = new N({
     width: 1440,
     height: 960,
     minWidth: 1100,
     minHeight: 720,
     backgroundColor: "#0b1018",
-    icon: getPublicAssetPath(APP_ICON_FILE_NAME),
+    icon: B(G),
     webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      preload: path.join(__dirname$1, "preload.mjs")
+      contextIsolation: !0,
+      nodeIntegration: !1,
+      preload: c.join(C, "preload.mjs")
     }
-  });
-  if (VITE_DEV_SERVER_URL) {
-    win.loadURL(VITE_DEV_SERVER_URL);
-  } else {
-    win.loadFile(path.join(RENDERER_DIST, "index.html"));
-  }
-  updateTaskbarMediaControls({ isPlaying: false });
-  win.on("closed", () => {
-    win = null;
+  }), v ? r.loadURL(v) : r.loadFile(c.join(R, "index.html")), U({ isPlaying: !1 }), r.on("closed", () => {
+    r = null;
   });
 }
-app.on("second-instance", () => {
-  if (win) {
-    if (win.isMinimized()) {
-      win.restore();
-    }
-    win.focus();
+f.on("second-instance", () => {
+  if (r) {
+    r.isMinimized() && r.restore(), r.focus();
     return;
   }
-  createWindow();
+  I();
 });
-function registerIpcHandlers() {
-  ipcMain.handle("library:pick-folder", async () => pickMusicFolder());
-  ipcMain.handle("library:load-last", async () => loadLastLibrarySnapshot());
-  ipcMain.handle("library:load-last-download-folder", async () => loadLastDownloadFolder());
-  ipcMain.handle("library:pick-download-folder", async () => pickDownloadFolder());
-  ipcMain.handle("library:load-track-payload", async (_event, filePath) => loadTrackPayload(filePath));
-  ipcMain.handle("yt-dlp:search", async (_event, request) => searchWithYtDlp(request));
-  ipcMain.handle("yt-dlp:update", async () => updateYtDlp());
-  ipcMain.on("media:state", (_event, state) => {
-    updateTaskbarMediaControls(state);
-  });
-  ipcMain.handle("yt-dlp:download", async (_event, request) => {
-    await updateState({
-      lastDownloadFolder: normalizeDownloadFolder(request.downloadFolderPath)
-    });
-    return downloadWithYtDlp(request);
-  });
+function ht() {
+  p.handle("library:pick-folder", async () => lt()), p.handle("library:load-last", async () => it()), p.handle("library:load-last-download-folder", async () => st()), p.handle("library:pick-download-folder", async () => ct()), p.handle("library:load-track-payload", async (t, e) => ft(e)), p.handle("library:export", async () => dt()), p.handle("library:import-analyze", async () => pt()), p.handle(
+    "library:import-download",
+    async (t, e, s, n) => mt(e, s, !!n)
+  ), p.handle("yt-dlp:search", async (t, e) => ut(e)), p.handle("yt-dlp:update", async () => rt()), p.on("media:state", (t, e) => {
+    U(e);
+  }), p.handle("yt-dlp:download", async (t, e) => (await E({
+    lastDownloadFolder: D(e.downloadFolderPath)
+  }), A(e)));
 }
-if (isPrimaryInstance) {
-  app.whenReady().then(() => {
-    if (process.platform === "win32") {
-      app.setAppUserModelId("com.yhcanbay.melodify");
-    }
-    registerIpcHandlers();
-    createWindow();
-  });
-}
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-    win = null;
-  }
+$ && f.whenReady().then(() => {
+  process.platform === "win32" && f.setAppUserModelId("com.yhcanbay.melodify"), ht(), I();
 });
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
+f.on("window-all-closed", () => {
+  process.platform !== "darwin" && (f.quit(), r = null);
+});
+f.on("activate", () => {
+  N.getAllWindows().length === 0 && I();
 });
 export {
-  MAIN_DIST,
-  RENDERER_DIST,
-  VITE_DEV_SERVER_URL
+  Ft as MAIN_DIST,
+  R as RENDERER_DIST,
+  v as VITE_DEV_SERVER_URL
 };
