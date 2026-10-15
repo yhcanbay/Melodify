@@ -12,6 +12,7 @@ import type {
   MediaControlState,
   PickFolderResult,
   PickLibraryResult,
+  Playlist,
   SearchRequest,
   SearchResult,
   TrackPayload,
@@ -31,6 +32,16 @@ contextBridge.exposeInMainWorld('melodifyApi', {
     ipcRenderer.invoke('yt-dlp:download', request) as Promise<DownloadResult>,
   loadTrackPayload: (filePath: string) =>
     ipcRenderer.invoke('library:load-track-payload', filePath) as Promise<TrackPayload | null>,
+  loadTrackCover: (filePath: string) =>
+    ipcRenderer.invoke('library:load-track-cover', filePath) as Promise<string | null>,
+  loadTracksCovers: (filePaths: string[]) =>
+    ipcRenderer.invoke('library:load-tracks-covers', filePaths) as Promise<Record<string, string | null>>,
+  loadPlaylists: (folderPath: string) =>
+    ipcRenderer.invoke('playlists:load-all', folderPath) as Promise<Playlist[]>,
+  savePlaylist: (folderPath: string, playlist: Playlist) =>
+    ipcRenderer.invoke('playlists:save', folderPath, playlist) as Promise<Playlist>,
+  deletePlaylist: (folderPath: string, playlistId: string) =>
+    ipcRenderer.invoke('playlists:delete', folderPath, playlistId) as Promise<{ success: boolean }>,
   exportLibrary: () => ipcRenderer.invoke('library:export') as Promise<ExportResult>,
   importAnalyze: () => ipcRenderer.invoke('library:import-analyze') as Promise<ImportAnalysis>,
   importDownloadMissing: (

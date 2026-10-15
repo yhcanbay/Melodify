@@ -115,3 +115,20 @@ export type ImportResult = {
   failed: number
   errors: string[]
 }
+
+export type PlaylistTrack = {
+  filePath: string
+  fileName: string
+  title: string
+  extension?: string
+  addedAt?: string
+}
+
+export type Playlist = {
+  id: string
+  name: string
+  description?: string
+  createdAt: string
+  updatedAt: string
+  tracks: PlaylistTrack[]
+}

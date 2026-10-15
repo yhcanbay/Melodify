@@ -46,6 +46,17 @@ interface Window {
     loadTrackPayload: (
       filePath: string,
     ) => Promise<import('../src/shared/melodify').TrackPayload | null>
+    loadTrackCover: (filePath: string) => Promise<string | null>
+    loadTracksCovers: (filePaths: string[]) => Promise<Record<string, string | null>>
+    loadPlaylists: (folderPath: string) => Promise<import('../src/shared/melodify').Playlist[]>
+    savePlaylist: (
+      folderPath: string,
+      playlist: import('../src/shared/melodify').Playlist,
+    ) => Promise<import('../src/shared/melodify').Playlist>
+    deletePlaylist: (
+      folderPath: string,
+      playlistId: string,
+    ) => Promise<{ success: boolean }>
     exportLibrary: () => Promise<import('../src/shared/melodify').ExportResult>
     importAnalyze: () => Promise<import('../src/shared/melodify').ImportAnalysis>
     importDownloadMissing: (
