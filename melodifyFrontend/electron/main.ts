@@ -2,8 +2,9 @@ import { spawn } from 'node:child_process'
 import { app, BrowserWindow, dialog, ipcMain, nativeImage } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { Dirent, existsSync, promises as fs } from 'node:fs'
+import { Dirent, promises as fs } from 'node:fs'
 import { parseFile, selectCover } from 'music-metadata'
+import { getFfmpegArgs, getNodeRuntimeArg, getYtDlpPath } from './tools'
 import type {
   DownloadRequest,
   DownloadResult,
@@ -203,38 +204,30 @@ function normalizeCookieBrowser(browserName?: string | null) {
   return SUPPORTED_COOKIE_BROWSERS.has(value) ? value : null
 }
 
-function getNodeRuntimeArg(): string {
-  const standardPaths = [
-    path.join(process.env['ProgramFiles'] ?? 'C:\\Program Files', 'nodejs', 'node.exe'),
-    path.join(process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)', 'nodejs', 'node.exe'),
-    path.join(process.env['LOCALAPPDATA'] ?? '', 'Programs', 'nodejs', 'node.exe'),
-  ]
-
-  for (const candidate of standardPaths) {
-    if (existsSync(candidate)) {
-      return `node:${candidate}`
-    }
-  }
-
-  return 'node'
-}
-
 function runCommand(command: string, args: string[]) {
   return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
     const child = spawn(command, args, {
       shell: false,
       windowsHide: true,
+      env: {
+        ...process.env,
+        PYTHONUTF8: '1',
+        PYTHONIOENCODING: 'utf-8',
+      },
     })
 
     let stdout = ''
     let stderr = ''
 
-    child.stdout?.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString('utf8')
+    child.stdout?.setEncoding('utf8')
+    child.stderr?.setEncoding('utf8')
+
+    child.stdout?.on('data', (chunk: string) => {
+      stdout += chunk
     })
 
-    child.stderr?.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString('utf8')
+    child.stderr?.on('data', (chunk: string) => {
+      stderr += chunk
     })
 
     child.on('error', (error) => {
@@ -252,6 +245,10 @@ function runCommand(command: string, args: string[]) {
   })
 }
 
+async function runYtDlp(args: string[]) {
+  return runCommand(await getYtDlpPath(), ['--ignore-config', '--encoding', 'utf-8', ...args])
+}
+
 function getYouTubeWatchUrl(videoIdOrUrl: string) {
   if (videoIdOrUrl.startsWith('http://') || videoIdOrUrl.startsWith('https://')) {
     return videoIdOrUrl
@@ -265,13 +262,13 @@ function formatCommandOutput(stdout: string, stderr: string) {
 }
 
 async function getYtDlpVersion() {
-  const { stdout } = await runCommand('yt-dlp', ['--version'])
+  const { stdout } = await runYtDlp(['--version'])
   return stdout.trim()
 }
 
 async function updateYtDlp(): Promise<YtDlpUpdateResult> {
   const previousVersion = await getYtDlpVersion()
-  const { stdout, stderr } = await runCommand('yt-dlp', ['-U'])
+  const { stdout, stderr } = await runYtDlp(['-U'])
   const currentVersion = await getYtDlpVersion()
 
   return {
@@ -416,7 +413,8 @@ async function searchWithYtDlp(request: SearchRequest): Promise<SearchResult[]> 
   }
 
   const limit = Math.max(1, Math.min(20, request.limit ?? 10))
-  const { stdout } = await runCommand('yt-dlp', [
+  const { stdout } = await runYtDlp([
+    '--no-js-runtimes',
     '--js-runtimes',
     getNodeRuntimeArg(),
     '--flat-playlist',
@@ -461,6 +459,8 @@ async function downloadWithYtDlp(request: DownloadRequest): Promise<DownloadResu
   await fs.mkdir(downloadFolderPath, { recursive: true })
 
   const args = [
+    ...getFfmpegArgs(),
+    '--no-js-runtimes',
     '--js-runtimes',
     getNodeRuntimeArg(),
     '--no-warnings',
@@ -491,7 +491,7 @@ async function downloadWithYtDlp(request: DownloadRequest): Promise<DownloadResu
 
   let stdout: string
   try {
-    const result = await runCommand('yt-dlp', args)
+    const result = await runYtDlp(args)
     stdout = result.stdout
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)

@@ -19,17 +19,35 @@
     "artifactName": "${productName}-Mac-${version}-Installer.${ext}"
   },
   "win": {
+    "extraResources": [
+      {
+        "from": "vendor/windows-x64",
+        "to": "tools",
+        "filter": ["**/*"]
+      }
+    ],
     "target": [
+      {
+        "target": "portable",
+        "arch": [
+          "x64"
+        ]
+      },
       {
         "target": "nsis",
         "arch": [
           "x64"
         ]
       }
-    ],
-    "artifactName": "${productName}-Windows-${version}-Setup.${ext}"
+    ]
+  },
+  "portable": {
+    "artifactName": "${productName}-Windows-${version}-x64-Portable.${ext}",
+    "requestExecutionLevel": "user",
+    "unpackDirName": false
   },
   "nsis": {
+    "artifactName": "${productName}-Windows-${version}-x64-Setup.${ext}",
     "oneClick": false,
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,

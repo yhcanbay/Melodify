@@ -1,30 +1,59 @@
-# React + TypeScript + Vite
+﻿# Melodify
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Windows için yerel müzik oynatıcısı ve müzik kütüphanesi uygulaması.
 
-Currently, two official plugins are available:
+## Kullanıcılara verilecek dosyalar
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+`release/1.0.0/` klasöründe iki dağıtım bulunur:
 
-## Expanding the ESLint configuration
+- `Melodify-Windows-1.0.0-x64-Portable.exe`: Kurulum yapmadan çift tıklayarak açılır. Tek başına bu dosyayı paylaşabilirsiniz.
+- `Melodify-Windows-1.0.0-x64-Setup.exe`: Melodify'ı bilgisayara kurar ve kısayol oluşturur. Ek araç kurulumu istemez.
 
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
+Her iki paket de Electron, Node.js, yt-dlp, FFmpeg ve ffprobe içerir. Kullanıcıların Node.js, Python veya FFmpeg kurmasına gerek yoktur. Windows 10/11 64 bit hedeflenir.
 
-- Configure the top-level `parserOptions` property like this:
+Yerel müzikleri dinlemek için internet gerekmez. Çevrimiçi arama, indirme ve yt-dlp güncellemesi internet gerektirir. Taşınabilir sürüm açılırken içeriğini geçici klasöre çıkardığı için ilk açılış biraz sürebilir. Ayarlar ve güncellenen yt-dlp, Windows kullanıcı profilindeki uygulama veri klasöründe tutulur; taşınabilir dosyanın yanına yazılmaz.
 
-```js
-export default {
-  // other rules...
-  parserOptions: {
-    ecmaVersion: 'latest',
-    sourceType: 'module',
-    project: ['./tsconfig.json', './tsconfig.node.json'],
-    tsconfigRootDir: __dirname,
-  },
-}
+`win-unpacked/Melodify.exe` tek başına dağıtılmaz; o sürüm bütün `win-unpacked` klasörüne ihtiyaç duyar.
+
+Paketler kod imzalama sertifikası olmadan üretildiğinde Windows indirme veya açılış sırasında yayıncı uyarısı gösterebilir.
+
+## Windows paketini yeniden oluşturma
+
+Bu gereksinimler yalnızca **derleme bilgisayarı** içindir:
+
+- Windows x64 ve Node.js 22 veya üzeri.
+- PATH içinde Windows x64 `yt-dlp.exe`, `ffmpeg.exe` ve `ffprobe.exe`.
+- İlk hazırlıkta bağımlılık ve lisans dosyalarını indirmek için internet.
+
+```powershell
+cd melodifyFrontend
+npm ci
+npm run build
 ```
 
-- Replace `plugin:@typescript-eslint/recommended` to `plugin:@typescript-eslint/recommended-type-checked` or `plugin:@typescript-eslint/strict-type-checked`
-- Optionally add `plugin:@typescript-eslint/stylistic-type-checked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and add `plugin:react/recommended` & `plugin:react/jsx-runtime` to the `extends` list
+Bu komut hem taşınabilir hem kurulumlu paketi üretir. Yalnızca taşınabilir paket için:
+
+```powershell
+npm run build:portable
+```
+
+Araçlar PATH içinde değilse üçünü aynı klasöre koyup konumunu belirtin:
+
+```powershell
+$env:MELODIFY_TOOLS_DIR = 'C:\MelodifyTools'
+npm run build
+```
+
+`prepare:tools` araçları `vendor/windows-x64/` içine kopyalar, mimari ve sürüm kontrolü yapar; sürümleri, SHA-256 özetlerini ve lisans bildirimlerini paket için hazırlar. Node.js yürütücüsü derlemeyi çalıştıran Node.js'ten alınır. Bu klasör ve `release/` Git'e eklenmez. yt-dlp güncellemeleri paket içindeki dosyayı değiştirmek yerine kullanıcı veri klasöründeki kopyayı günceller.
+
+Yeni sürüm için `package.json` içindeki `version` alanını değiştirip aynı komutu çalıştırın; çıktı klasörü ve dosya adları sürüm numarasını izler.
+
+## Geliştirme
+
+```powershell
+npm run dev
+npm run lint
+npm run build:app
+```
+
+`build:app` yalnızca arayüzü ve Electron kodunu derler; dağıtılabilir exe üretmez. Geliştirmede hazırlanmış araçlar yoksa yt-dlp, Node.js ve FFmpeg sistem PATH'inden kullanılır.

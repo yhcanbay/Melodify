@@ -12,6 +12,7 @@ dist
 dist-electron
 dist-ssr
 release
+vendor/windows-x64
 *.local
 
 # Editor directories and files
