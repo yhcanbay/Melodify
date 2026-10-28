@@ -1,7 +1,7 @@
 :root {
-  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  color: #ffffff;
-  background: #121212;
+  font-family: "Segoe UI Variable", "Segoe UI", sans-serif;
+  color: var(--text-main, #f2edf5);
+  background: var(--bg-base, #101119);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -19,5 +19,5 @@ body,
 
 body {
   overflow: hidden;
-  background: #121212;
+  background: var(--bg-base, #101119);
 }

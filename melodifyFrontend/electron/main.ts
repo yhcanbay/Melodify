@@ -1,10 +1,11 @@
 import { spawn } from 'node:child_process'
-import { app, BrowserWindow, dialog, ipcMain, nativeImage } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { Dirent, promises as fs } from 'node:fs'
 import { parseFile, selectCover } from 'music-metadata'
 import { getFfmpegArgs, getNodeRuntimeArg, getYtDlpPath } from './tools'
+import { attachTaskbarMediaControls } from './taskbar'
 import type {
   DownloadRequest,
   DownloadResult,
@@ -15,7 +16,6 @@ import type {
   ImportProgress,
   ImportResult,
   LibrarySnapshot,
-  MediaCommand,
   MediaControlState,
   MusicTrack,
   PickFolderResult,
@@ -63,7 +63,14 @@ type AppState = {
 const SUPPORTED_COOKIE_BROWSERS = new Set(['chrome', 'chromium', 'edge', 'firefox', 'brave', 'opera'])
 
 const STATE_FILE_NAME = 'melodify-state.json'
-const APP_ICON_FILE_NAME = 'melodify-icon.png'
+// The installed app's Start menu shortcut wins when Explorer resolves a group
+// icon. Keep development and portable windows out of that installed app group.
+const APP_ID = !app.isPackaged
+  ? 'com.yhcanbay.melodify.development'
+  : process.env.PORTABLE_EXECUTABLE_FILE
+    ? 'com.yhcanbay.melodify.portable'
+    : 'com.yhcanbay.melodify'
+const APP_ICON_FILE_NAME = process.platform === 'win32' ? 'melodify-icon.ico' : 'melodify-icon.png'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
@@ -74,6 +81,7 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
 let win: BrowserWindow | null
+let taskbarMediaControls: ReturnType<typeof attachTaskbarMediaControls> | null = null
 const isPrimaryInstance = app.requestSingleInstanceLock()
 
 if (!isPrimaryInstance) {
@@ -86,50 +94,6 @@ function getStateFilePath() {
 
 function getPublicAssetPath(fileName: string) {
   return path.join(process.env.VITE_PUBLIC, fileName)
-}
-
-function createThumbarIcon(fileName: string) {
-  return nativeImage.createFromPath(getPublicAssetPath(fileName))
-}
-
-const thumbarIcons = {
-  next: createThumbarIcon('thumbar-next.png'),
-  pause: createThumbarIcon('thumbar-pause.png'),
-  play: createThumbarIcon('thumbar-play.png'),
-  previous: createThumbarIcon('thumbar-previous.png'),
-}
-
-function sendMediaCommand(command: MediaCommand) {
-  win?.webContents.send('media:command', command)
-}
-
-function updateTaskbarMediaControls(state: MediaControlState) {
-  if (!win || process.platform !== 'win32') {
-    return
-  }
-
-  const flags: Array<'enabled'> = ['enabled']
-
-  win.setThumbarButtons([
-    {
-      tooltip: 'Previous track',
-      icon: thumbarIcons.previous,
-      click: () => sendMediaCommand('previous'),
-      flags,
-    },
-    {
-      tooltip: state.isPlaying ? 'Pause' : 'Play',
-      icon: state.isPlaying ? thumbarIcons.pause : thumbarIcons.play,
-      click: () => sendMediaCommand('play-pause'),
-      flags,
-    },
-    {
-      tooltip: 'Next track',
-      icon: thumbarIcons.next,
-      click: () => sendMediaCommand('next'),
-      flags,
-    },
-  ])
 }
 
 async function readState(): Promise<AppState> {
@@ -1066,12 +1030,14 @@ async function deletePlaylistFromFolder(folderPath: string, playlistId: string):
 }
 
 function createWindow() {
-  win = new BrowserWindow({
+  const window = new BrowserWindow({
+    show: false,
     width: 1440,
     height: 960,
     minWidth: 1100,
     minHeight: 720,
-    backgroundColor: '#0b1018',
+    backgroundColor: '#101119',
+    title: 'Melodify',
     icon: getPublicAssetPath(APP_ICON_FILE_NAME),
     webPreferences: {
       contextIsolation: true,
@@ -1079,16 +1045,31 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.mjs'),
     },
   })
+  win = window
+
+  if (process.platform === 'win32') {
+    const executable = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath
+    window.setAppDetails({
+      appId: APP_ID,
+      appIconPath: app.isPackaged ? executable : getPublicAssetPath('melodify-icon.ico'),
+      appIconIndex: 0,
+      relaunchCommand: app.isPackaged ? `"${executable}"` : `"${executable}" "${app.getAppPath()}"`,
+      relaunchDisplayName: 'Melodify',
+    })
+  }
+  // Set the complete shell identity before showing the window; otherwise
+  // Explorer can cache the host executable's icon for the taskbar group.
+  taskbarMediaControls = attachTaskbarMediaControls(window, process.env.VITE_PUBLIC)
 
   if (VITE_DEV_SERVER_URL) {
-    win.loadURL(VITE_DEV_SERVER_URL)
+    window.loadURL(VITE_DEV_SERVER_URL)
   } else {
-    win.loadFile(path.join(RENDERER_DIST, 'index.html'))
+    window.loadFile(path.join(RENDERER_DIST, 'index.html'))
   }
+  window.show()
 
-  updateTaskbarMediaControls({ hasTrack: false, isPlaying: false })
-
-  win.on('closed', () => {
+  window.on('closed', () => {
+    taskbarMediaControls = null
     win = null
   })
 }
@@ -1140,8 +1121,14 @@ function registerIpcHandlers() {
   )
   ipcMain.handle('yt-dlp:search', async (_event, request: SearchRequest) => searchWithYtDlp(request))
   ipcMain.handle('yt-dlp:update', async () => updateYtDlp())
-  ipcMain.on('media:state', (_event, state: MediaControlState) => {
-    updateTaskbarMediaControls(state)
+  ipcMain.on('media:state', (event, state: MediaControlState) => {
+    if (event.sender !== win?.webContents || !state || typeof state !== 'object') return
+    if (typeof state.hasTrack !== 'boolean' || typeof state.isPlaying !== 'boolean') return
+    taskbarMediaControls?.update({
+      hasTrack: state.hasTrack,
+      isPlaying: state.hasTrack && state.isPlaying,
+      title: typeof state.title === 'string' ? state.title : undefined,
+    })
   })
   ipcMain.handle('yt-dlp:download', async (_event, request: DownloadRequest) => {
     await updateState({
@@ -1155,7 +1142,7 @@ function registerIpcHandlers() {
 if (isPrimaryInstance) {
   app.whenReady().then(() => {
     if (process.platform === 'win32') {
-      app.setAppUserModelId('com.yhcanbay.melodify')
+      app.setAppUserModelId(APP_ID)
     }
 
     registerIpcHandlers()

@@ -1,5 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react'
 import './App.css'
+import './Studio.css'
+import './Appearance.css'
+import { AmbientBackdrop, GrainField, GradientText, SpotlightCard } from './components/VisualEffects'
+import { AppearanceControls } from './components/AppearanceControls'
 import type { DownloadResult, ExportedTrack, ImportProgress, LibrarySnapshot, MediaCommand, MusicTrack, Playlist, SearchResult } from './shared/melodify'
 
 const MIME_BY_EXTENSION: Record<string, string[]> = {
@@ -17,6 +21,17 @@ const MIME_BY_EXTENSION: Record<string, string[]> = {
 
 type AppTab = 'library' | 'queue' | 'search' | 'playlists' | 'playlist-detail'
 type LibrarySort = 'name-asc' | 'name-desc' | 'date-desc' | 'date-asc'
+type RepeatMode = 'off' | 'once' | 'one'
+type QueueDropTarget = { trackId: string; position: 'before' | 'after' }
+
+const REPEAT_LABELS: Record<RepeatMode, string> = {
+  off: 'Tekrar kapalı. Her parçayı bir kez tekrarlamak için tıkla.',
+  once: 'Her parçayı bir kez tekrarla açık. Sürekli tekrarlamak için tıkla.',
+  one: 'Aynı parçayı sürekli tekrarla açık. Tekrarı kapatmak için tıkla.',
+}
+
+const LIKED_PLAYLIST_NAME = 'Beğendiklerim'
+
 type IconName =
   | 'check'
   | 'download'
@@ -363,10 +378,6 @@ function TrackRowCover({
   )
 }
 
-function sanitizeFileName(name: string): string {
-  return name.replace(/[<>:"/\\|?*]/g, '_').trim() || 'playlist'
-}
-
 function PlaylistCoverCard({ playlist, size = 'medium' }: { playlist: Playlist; size?: 'small' | 'medium' | 'large' }) {
   const [covers, setCovers] = useState<string[]>([])
 
@@ -443,6 +454,8 @@ function App() {
   const [currentTrackId, setCurrentTrackId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isShuffled, setIsShuffled] = useState(false)
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>('off')
+  const [isSavingLike, setIsSavingLike] = useState(false)
   const [statusMessage, setStatusMessage] = useState('Bir klasör seçerek yerel müzik kitaplığını başlat.')
   const [errorMessage, setErrorMessage] = useState('')
   const [isPlaying, setIsPlaying] = useState(false)
@@ -463,6 +476,7 @@ function App() {
   const [duration, setDuration] = useState(0)
   const [volume, setVolume] = useState(0.7)
   const [draggedQueueTrackId, setDraggedQueueTrackId] = useState<string | null>(null)
+  const [queueDropTarget, setQueueDropTarget] = useState<QueueDropTarget | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const [exportMessage, setExportMessage] = useState('')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -478,6 +492,9 @@ function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const autoPlayRequestedRef = useRef(false)
   const pendingBlobUrlRef = useRef('')
+  const repeatedTrackIdRef = useRef<string | null>(null)
+  const likeSaveInFlightRef = useRef(false)
+  const libraryFolderRef = useRef('')
 
   const missingWithUrl = useMemo(
     () => (importMissing ?? []).filter((track) => Boolean(track.webpageUrl || track.youtubeId)),
@@ -519,7 +536,17 @@ function App() {
   )
   const currentTrackIndex = queue.findIndex((track) => track.id === currentTrackId)
   const currentTrack = currentTrackIndex >= 0 ? queue[currentTrackIndex] : null
+  const likedPlaylist = playlists.find((playlist) =>
+    playlist.name.trim().toLocaleLowerCase('tr-TR') === LIKED_PLAYLIST_NAME.toLocaleLowerCase('tr-TR'),
+  )
+  const isCurrentTrackLiked = Boolean(currentTrack && likedPlaylist?.tracks.some((track) =>
+    normalizeComparablePath(track.filePath) === normalizeComparablePath(currentTrack.filePath),
+  ))
   const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0
+
+  useEffect(() => {
+    repeatedTrackIdRef.current = null
+  }, [currentTrackId, repeatMode])
 
   const syncSnapshot = (
     snapshot: LibrarySnapshot,
@@ -535,6 +562,7 @@ function App() {
       options?.preserveQueue ?? (queue.length > 0 && (isPlaying || currentTrackId !== null))
     const playableTracks = snapshot.tracks.filter(isTrackPlayable)
 
+    libraryFolderRef.current = snapshot.folderPath
     setLibraryFolder(snapshot.folderPath)
     setLibraryTracks(snapshot.tracks)
     void loadPlaylists(snapshot.folderPath)
@@ -826,7 +854,7 @@ function App() {
     }
   }
 
-  const startTrack = async (trackId: string, sourceTracks?: MusicTrack[]) => {
+  const startTrack = async (trackId: string, sourceTracks?: MusicTrack[], isRepeat = false) => {
     const selectedTrack =
       queue.find((track) => track.id === trackId) ??
       (sourceTracks ?? libraryTracks).find((track) => track.id === trackId)
@@ -834,6 +862,10 @@ function App() {
 
     if (!selectedTrack) {
       return
+    }
+
+    if (!isRepeat) {
+      repeatedTrackIdRef.current = null
     }
 
     if (!isTrackPlayable(selectedTrack)) {
@@ -885,9 +917,68 @@ function App() {
     if (!folder) return
     try {
       const result = await window.melodifyApi.loadPlaylists(folder)
-      setPlaylists(result)
+      if (libraryFolderRef.current === folder) {
+        setPlaylists(result)
+      }
     } catch (err) {
       console.error('Çalma listeleri yüklenirken hata:', err)
+    }
+  }
+
+  const toggleCurrentTrackLike = async () => {
+    if (!currentTrack || !libraryFolder || likeSaveInFlightRef.current) {
+      return
+    }
+
+    const track = currentTrack
+    const folder = libraryFolder
+    likeSaveInFlightRef.current = true
+    setIsSavingLike(true)
+
+    try {
+      const latestPlaylists = await window.melodifyApi.loadPlaylists(folder)
+      const existing = latestPlaylists.find((playlist) =>
+        playlist.name.trim().toLocaleLowerCase('tr-TR') === LIKED_PLAYLIST_NAME.toLocaleLowerCase('tr-TR'),
+      )
+      const alreadyLiked = existing?.tracks.some((item) =>
+        normalizeComparablePath(item.filePath) === normalizeComparablePath(track.filePath),
+      )
+      const now = new Date().toISOString()
+      const playlist: Playlist = existing ?? {
+        id: `pl_${crypto.randomUUID()}`,
+        name: LIKED_PLAYLIST_NAME,
+        createdAt: now,
+        updatedAt: now,
+        tracks: [],
+      }
+      const saved = await window.melodifyApi.savePlaylist(folder, {
+        ...playlist,
+        updatedAt: now,
+        tracks: alreadyLiked
+          ? playlist.tracks.filter((item) =>
+              normalizeComparablePath(item.filePath) !== normalizeComparablePath(track.filePath),
+            )
+          : [...playlist.tracks, {
+              filePath: track.filePath,
+              fileName: track.fileName,
+              title: track.title,
+              extension: track.extension,
+              addedAt: now,
+            }],
+      })
+
+      if (libraryFolderRef.current === folder) {
+        setPlaylists((previous) => [saved, ...previous.filter((item) => item.id !== saved.id)])
+        showToast(alreadyLiked
+          ? `"${track.title}", Beğendiklerim listesinden çıkarıldı.`
+          : `"${track.title}", Beğendiklerim listesine eklendi.`)
+      }
+    } catch (error) {
+      console.error(error)
+      showToast('Beğendiklerim listesi güncellenemedi.')
+    } finally {
+      likeSaveInFlightRef.current = false
+      setIsSavingLike(false)
     }
   }
 
@@ -1133,6 +1224,18 @@ function App() {
     }
   }
 
+  const restartCurrentTrack = (isRepeat = false) => {
+    const audio = audioRef.current
+
+    if (!audio || !currentTrack) {
+      return
+    }
+
+    audio.currentTime = 0
+    setCurrentTime(0)
+    void startTrack(currentTrack.id, undefined, isRepeat)
+  }
+
   const goToPreviousTrack = () => {
     const audio = audioRef.current
 
@@ -1140,8 +1243,16 @@ function App() {
       return
     }
 
+    repeatedTrackIdRef.current = null
+
     if (audio && audio.currentTime > 3) {
       audio.currentTime = 0
+      setCurrentTime(0)
+      return
+    }
+
+    if (queue.length === 1) {
+      restartCurrentTrack()
       return
     }
 
@@ -1155,9 +1266,41 @@ function App() {
       return
     }
 
+    repeatedTrackIdRef.current = null
+
+    if (queue.length === 1) {
+      restartCurrentTrack()
+      return
+    }
+
     const nextIndex = currentTrackIndex >= queue.length - 1 ? 0 : currentTrackIndex + 1
     autoPlayRequestedRef.current = true
     setCurrentTrackId(queue[nextIndex]?.id ?? null)
+  }
+
+  const handleTrackEnded = () => {
+    if (!currentTrack) {
+      return
+    }
+
+    if (repeatMode === 'one') {
+      restartCurrentTrack(true)
+      return
+    }
+
+    if (repeatMode === 'once' && repeatedTrackIdRef.current !== currentTrack.id) {
+      repeatedTrackIdRef.current = currentTrack.id
+      restartCurrentTrack(true)
+      return
+    }
+
+    if (currentTrackIndex < queue.length - 1) {
+      goToNextTrack()
+      return
+    }
+
+    autoPlayRequestedRef.current = false
+    setIsPlaying(false)
   }
 
   const togglePlayPause = async () => {
@@ -1168,6 +1311,9 @@ function App() {
     }
 
     if (audio.paused) {
+      if (audio.ended) {
+        repeatedTrackIdRef.current = null
+      }
       try {
         await audio.play()
         setIsPlaying(true)
@@ -1468,14 +1614,42 @@ function App() {
     setCurrentTime(audio.currentTime)
   }
 
-  const moveQueueTrack = (targetTrackId: string) => {
-    if (!draggedQueueTrackId || draggedQueueTrackId === targetTrackId) {
+  const getQueueDropTarget = (event: DragEvent<HTMLButtonElement>, targetTrackId: string): QueueDropTarget | null => {
+    const fromIndex = queue.findIndex((track) => track.id === draggedQueueTrackId)
+    const targetIndex = queue.findIndex((track) => track.id === targetTrackId)
+    if (fromIndex < 0 || targetIndex < 0) {
+      return null
+    }
+
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const position = event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after'
+    const insertionIndex = targetIndex + (position === 'after' ? 1 : 0)
+    if (insertionIndex === fromIndex || insertionIndex === fromIndex + 1) {
+      return null
+    }
+
+    return { trackId: targetTrackId, position }
+  }
+
+  const clearQueueDrag = () => {
+    setDraggedQueueTrackId(null)
+    setQueueDropTarget(null)
+  }
+
+  const moveQueueTrack = (target: QueueDropTarget | null) => {
+    if (!draggedQueueTrackId || !target) {
       return
     }
 
     setQueue((currentQueue) => {
       const fromIndex = currentQueue.findIndex((track) => track.id === draggedQueueTrackId)
-      const toIndex = currentQueue.findIndex((track) => track.id === targetTrackId)
+      const targetIndex = currentQueue.findIndex((track) => track.id === target.trackId)
+      if (fromIndex < 0 || targetIndex < 0) {
+        return currentQueue
+      }
+
+      const insertionIndex = targetIndex + (target.position === 'after' ? 1 : 0)
+      const toIndex = insertionIndex > fromIndex ? insertionIndex - 1 : insertionIndex
       return moveItem(currentQueue, fromIndex, toIndex)
     })
   }
@@ -1649,15 +1823,17 @@ function App() {
   }
 
   return (
-    <div className="spotify-shell">
-      <main className="spotify-body">
+    <div className={`studio-shell${isPlaying ? ' is-playing' : ''}`}>
+      <AmbientBackdrop />
+      <main className="studio-body">
         <aside className="sidebar">
           <button type="button" className="brand-button" onClick={() => setActiveTab('library')}>
-            <span className="brand-mark">
-              <Icon name="music" />
+            <span className="brand-mark" aria-hidden="true">
+              <i /><i /><i /><i />
             </span>
             <span>Melodify</span>
           </button>
+          <p className="brand-caption">Kendi ritminde.</p>
 
           <nav className="sidebar-nav" aria-label="Ana navigasyon">
             <button
@@ -1668,7 +1844,7 @@ function App() {
               <span>
                 <Icon name="list" />
               </span>
-              Liste
+              Kitaplık
             </button>
             <button
               type="button"
@@ -1698,13 +1874,13 @@ function App() {
               <span>
                 <Icon name="download" />
               </span>
-              İndirilenler
+              Ara & İndir
             </button>
           </nav>
 
           <div className="sidebar-playlists-section">
             <div className="sidebar-playlists-head">
-              <span className="sidebar-section-title">ÇALMA LİSTELERİ</span>
+              <span className="sidebar-section-title">SENİN SEÇİMLERİN</span>
               <button
                 type="button"
                 className="sidebar-add-playlist-btn"
@@ -1752,74 +1928,84 @@ function App() {
           </div>
 
           <div className="sidebar-status">
-            <strong>{libraryTracks.length} parça</strong>
-            <span>{playlists.length} çalma listesi</span>
-            <span>{playableLibraryTracks.length} oynatılabilir</span>
-            <span>{downloadFolderPath ? formatFolderName(downloadFolderPath) : 'İndirme klasörü yok'}</span>
+            <span className="archive-label"><span /> YEREL ARŞİVİN</span>
+            <strong title={libraryFolder}>{libraryFolder ? formatFolderName(libraryFolder) : 'Müziğine bir yer aç.'}</strong>
+            <p>{libraryTracks.length} parça <span>·</span> {playlists.length} çalma listesi</p>
+            <span className="archive-note">Sen seç. Melodify eşlik etsin.</span>
           </div>
         </aside>
 
         <section className="content-area">
+          <header className="workspace-header">
+            <div className="workspace-breadcrumb">
+              <span>Dinleme alanın</span><span aria-hidden="true">/</span>
+              <strong>{activeTab === 'library' ? 'Kitaplık' : activeTab === 'queue' ? 'Çalma sırası' : activeTab === 'search' ? 'Ara & indir' : 'Çalma listeleri'}</strong>
+            </div>
+            <div className="workspace-actions">
+              <AppearanceControls />
+              <button type="button" className="workspace-folder" onClick={openLibraryPicker}>
+                <Icon name="folder" /> {libraryFolder ? 'Kitaplığı değiştir' : 'Kitaplık bağla'}
+              </button>
+            </div>
+          </header>
           {activeTab === 'library' && (
             <section className="library-page">
-              <div className="library-banner">
-                <div
-                  className={`large-cover${bannerCoverUrl ? ' has-image' : ''}`}
-                  onClick={() => bannerCoverUrl && setIsCoverPreviewOpen(true)}
-                  title={bannerCoverUrl ? 'Görseli büyütmek için tıkla' : undefined}
-                >
-                  {bannerCoverUrl ? (
-                    <>
-                      <div
-                        className="large-cover-ambient"
-                        style={{ backgroundImage: `url(${bannerCoverUrl})` }}
-                        aria-hidden="true"
-                      />
-                      <img src={bannerCoverUrl} alt="" className="large-cover-image" />
-                    </>
-                  ) : (
-                    <Icon name="music" />
-                  )}
-                </div>
-                <div>
-                  <p className="eyebrow">Kitaplık</p>
-                  <h1>{libraryFolder ? formatFolderName(libraryFolder) : 'Müziklerin'}</h1>
-                  <p>{statusMessage}</p>
+              <SpotlightCard className="library-banner listening-banner">
+                <GrainField />
+                <div className="hero-copy">
+                  <p className="eyebrow"><span className="little-star" aria-hidden="true">✳</span> MÜZİKLE KENDİNE DÖN</p>
+                  <h1>Dünyayı kıs.<br /><GradientText>Müziği aç.</GradientText></h1>
+                  <p className="hero-description">Sevdiğin sesler, biriktirdiğin anlar.<br />Burası senin kişisel müzik alanın.</p>
                   {errorMessage && <div className="inline-error">{errorMessage}</div>}
                   <div className="banner-actions">
                     <button
                       type="button"
-                      className="round-play"
+                      className="hero-play"
                       onClick={() =>
                         playableVisibleLibraryTracks[0] &&
                         startTrack(playableVisibleLibraryTracks[0].id, visibleLibraryTracks)
                       }
+                      disabled={playableVisibleLibraryTracks.length === 0}
                     >
-                      <Icon name="play" />
-                    </button>
-                    <button type="button" onClick={openLibraryPicker}>
-                      Klasör seç
+                      <Icon name="play" /> Dinlemeye başla
                     </button>
                     <button type="button" onClick={toggleShuffle} disabled={playableLibraryTracks.length < 2}>
+                      <Icon name="shuffle" />
                       {isShuffled ? 'Karışığı kapat' : 'Karışık çal'}
                     </button>
-                    <button
-                      type="button"
-                      onClick={handleExportLibrary}
-                      disabled={isExporting || libraryTracks.length === 0}
-                    >
-                      <Icon name="upload" />
-                      {isExporting ? 'Aktarılıyor...' : 'Dışa Aktar'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleImportAnalyze}
-                      disabled={isAnalyzing || isDownloadingImport || !libraryFolder}
-                    >
-                      <Icon name="download" />
-                      {isAnalyzing ? 'Analiz ediliyor...' : 'İçe Aktar'}
-                    </button>
                   </div>
+                </div>
+                <div className="hero-art">
+                  <div className="record-disc" aria-hidden="true"><span>m.</span></div>
+                  <button
+                    type="button"
+                    className={`large-cover record-sleeve${bannerCoverUrl ? ' has-image' : ''}`}
+                    onClick={() => setIsCoverPreviewOpen(true)}
+                    disabled={!bannerCoverUrl}
+                    aria-label="Albüm kapağını büyüt"
+                  >
+                    {bannerCoverUrl ? (
+                      <img src={bannerCoverUrl} alt="" className="large-cover-image" />
+                    ) : (
+                      <span className="sleeve-art"><span className="sleeve-wordmark">m.</span><span className="sleeve-caption">SESİNİN PEŞİNDEN.</span><span className="sleeve-orbit" /></span>
+                    )}
+                  </button>
+                  <span className="record-caption">HER PARÇADA BAŞKA BİR HİKÂYE.</span>
+                </div>
+              </SpotlightCard>
+
+              <div className="collection-heading">
+                <div>
+                  <p className="eyebrow">{libraryFolder ? formatFolderName(libraryFolder) : 'SANA AİT BİR KOLEKSİYON'}</p>
+                  <h2>Tüm parçalar <span>{libraryTracks.length}</span></h2>
+                </div>
+                <div className="collection-actions">
+                  <button type="button" onClick={handleExportLibrary} disabled={isExporting || libraryTracks.length === 0}>
+                    <Icon name="upload" /> {isExporting ? 'Aktarılıyor...' : 'Dışa aktar'}
+                  </button>
+                  <button type="button" onClick={handleImportAnalyze} disabled={isAnalyzing || isDownloadingImport || !libraryFolder}>
+                    <Icon name="download" /> {isAnalyzing ? 'Analiz ediliyor...' : 'İçe aktar'}
+                  </button>
                 </div>
               </div>
 
@@ -1975,6 +2161,7 @@ function App() {
               <div className="library-tools">
                 <label>
                   <span>Kitaplıkta ara</span>
+                  <Icon name="search" />
                   <input
                     type="search"
                     value={librarySearchQuery}
@@ -1993,7 +2180,9 @@ function App() {
                 </label>
               </div>
 
+              <div className="track-table-heading" aria-hidden="true"><span>#</span><span /><span>PARÇA</span><span>FORMAT</span><span /></div>
               {renderTrackList()}
+              <p className="library-status" role="status">{statusMessage}</p>
             </section>
           )}
 
@@ -2002,10 +2191,10 @@ function App() {
               <div className="playlists-page-head">
                 <div>
                   <p className="eyebrow">Koleksiyon</p>
-                  <h1>Çalma Listeleri</h1>
+                  <h1>Her ruh haline<br /><GradientText>bir çalma listesi.</GradientText></h1>
                   <p>
                     {libraryFolder
-                      ? `${formatFolderName(libraryFolder)} klasöründe JSON formatında saklanan ${playlists.length} çalma listesi.`
+                      ? `${playlists.length} kişisel seçki. Bir sonraki anın müziği burada.`
                       : 'Çalma listelerini görmek ve oluşturmak için bir müzik klasörü seç.'}
                   </p>
                 </div>
@@ -2040,7 +2229,8 @@ function App() {
               ) : (
                 <div className="playlists-grid">
                   {playlists.map((pl) => (
-                    <article
+                    <SpotlightCard
+                      as="article"
                       key={pl.id}
                       className="playlist-card"
                       onClick={() => {
@@ -2064,13 +2254,19 @@ function App() {
                         </button>
                       </div>
                       <div className="playlist-card-info">
-                        <h3 title={pl.name}>{pl.name}</h3>
+                        <h3 title={pl.name}>
+                          <button type="button" className="playlist-title-button" onClick={(event) => {
+                            event.stopPropagation()
+                            setSelectedPlaylistId(pl.id)
+                            setActiveTab('playlist-detail')
+                          }}>{pl.name}</button>
+                        </h3>
                         <p>{pl.description || `${pl.tracks.length} parça`}</p>
                         <span className="playlist-card-tag">
-                          📁 {sanitizeFileName(pl.name)}_{pl.id}.json
+                          <Icon name="music" /> {pl.tracks.length} parça · Sana özel
                         </span>
                       </div>
-                    </article>
+                    </SpotlightCard>
                   ))}
                 </div>
               )}
@@ -2096,9 +2292,7 @@ function App() {
                     <div>
                       <div className="playlist-banner-eyebrow-row">
                         <span className="eyebrow">Çalma Listesi</span>
-                        <span className="playlist-json-badge" title="Bu liste bu JSON dosyasında saklanmaktadır">
-                          📁 JSON: melodify-playlists/{sanitizeFileName(selectedPlaylist.name)}_{selectedPlaylist.id}.json
-                        </span>
+                        <span className="playlist-json-badge">Sana özel seçki</span>
                       </div>
                       <h1>{selectedPlaylist.name}</h1>
                       {selectedPlaylist.description && (
@@ -2286,9 +2480,35 @@ function App() {
                 <div>
                   <p className="eyebrow">Sıra</p>
                   <h1>Çalma Sırası</h1>
+                  <p className="page-description">Akış sana kalmış. Parçaları sürükle, sıradaki anı sen belirle.</p>
                 </div>
               </div>
-              <div className="track-table">
+              <div
+                className="track-table queue-track-table"
+                onDragOver={(event) => {
+                  if (!draggedQueueTrackId) return
+                  event.preventDefault()
+                  event.dataTransfer.dropEffect = 'move'
+                }}
+                onDragLeave={(event) => {
+                  if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) {
+                    return
+                  }
+                  const bounds = event.currentTarget.getBoundingClientRect()
+                  if (
+                    event.clientX < bounds.left || event.clientX > bounds.right ||
+                    event.clientY < bounds.top || event.clientY > bounds.bottom
+                  ) {
+                    setQueueDropTarget(null)
+                  }
+                }}
+                onDrop={(event) => {
+                  if (!draggedQueueTrackId) return
+                  event.preventDefault()
+                  moveQueueTrack(queueDropTarget)
+                  clearQueueDrag()
+                }}
+              >
                 {queue.length === 0 ? (
                   <div className="spotify-empty">Çalma sırası boş.</div>
                 ) : (
@@ -2298,24 +2518,34 @@ function App() {
                       type="button"
                       className={`track-row queue-draggable${track.id === currentTrack?.id ? ' active' : ''}${
                         track.id === draggedQueueTrackId ? ' dragging' : ''
+                      }${
+                        queueDropTarget?.trackId === track.id ? ` queue-drop-${queueDropTarget.position}` : ''
                       }`}
                       draggable
                       onClick={() => startTrack(track.id)}
                       onDragStart={(event) => {
                         event.dataTransfer.effectAllowed = 'move'
                         event.dataTransfer.setData('text/plain', track.id)
+                        setQueueDropTarget(null)
                         setDraggedQueueTrackId(track.id)
                       }}
                       onDragOver={(event) => {
+                        if (!draggedQueueTrackId) return
                         event.preventDefault()
                         event.dataTransfer.dropEffect = 'move'
+                        const target = getQueueDropTarget(event, track.id)
+                        setQueueDropTarget((previous) =>
+                          previous?.trackId === target?.trackId && previous?.position === target?.position ? previous : target,
+                        )
                       }}
                       onDrop={(event) => {
+                        if (!draggedQueueTrackId) return
                         event.preventDefault()
-                        moveQueueTrack(track.id)
-                        setDraggedQueueTrackId(null)
+                        event.stopPropagation()
+                        moveQueueTrack(getQueueDropTarget(event, track.id))
+                        clearQueueDrag()
                       }}
-                      onDragEnd={() => setDraggedQueueTrackId(null)}
+                      onDragEnd={clearQueueDrag}
                     >
                       <span className="track-number">{String(index + 1).padStart(2, '0')}</span>
                       <TrackRowCover track={track} active={track.id === currentTrack?.id} isPlaying={isPlaying} />
@@ -2335,8 +2565,9 @@ function App() {
             <section className="download-page">
               <div className="section-head page-head">
                 <div>
-                  <p className="eyebrow">İndirme</p>
-                  <h1>Ara ve indir</h1>
+                  <p className="eyebrow">YENİ SESLERE YER AÇ</p>
+                  <h1>Sıradaki <GradientText>keşfin.</GradientText></h1>
+                  <p className="page-description">Bir şarkıyla başlar. Ara, indir, koleksiyonuna kat.</p>
                 </div>
               </div>
 
@@ -2458,7 +2689,16 @@ function App() {
             <strong>{currentTrack?.title ?? 'Çalan Şarkı'}</strong>
             <span>{currentTrack?.fileName ?? 'Calmaya baslamak icin bir parça sec.'}</span>
           </div>
-          <button type="button" aria-label="Beğen">
+          <button
+            type="button"
+            className={`like-button${isCurrentTrackLiked ? ' accent' : ''}`}
+            aria-label={isCurrentTrackLiked ? 'Beğeniyi kaldır' : 'Beğen'}
+            aria-pressed={isCurrentTrackLiked}
+            aria-busy={isSavingLike}
+            title={isCurrentTrackLiked ? 'Beğendiklerim listesinden çıkar' : 'Beğendiklerim listesine ekle'}
+            onClick={() => void toggleCurrentTrackLike()}
+            disabled={!currentTrack || !libraryFolder || isLoading || isSavingLike}
+          >
             <Icon name="heart" />
           </button>
           <button
@@ -2474,20 +2714,31 @@ function App() {
 
         <div className="player-controls">
           <div className="player-buttons">
-            <button type="button" className={isShuffled ? 'accent' : ''} onClick={toggleShuffle} disabled={playableLibraryTracks.length < 2}>
+            <button type="button" className={isShuffled ? 'accent' : ''} onClick={toggleShuffle} disabled={playableLibraryTracks.length < 2} aria-label="Karışık çal" aria-pressed={isShuffled}>
               <Icon name="shuffle" />
             </button>
-            <button type="button" onClick={goToPreviousTrack} disabled={!currentTrack}>
+            <button type="button" onClick={goToPreviousTrack} disabled={!currentTrack} aria-label="Önceki parça">
               <Icon name="previous" />
             </button>
-            <button type="button" className="play-button" onClick={togglePlayPause} disabled={!currentTrack}>
+            <button type="button" className="play-button" onClick={togglePlayPause} disabled={!currentTrack} aria-label={isPlaying ? 'Duraklat' : 'Oynat'}>
               <Icon name={isPlaying ? 'pause' : 'play'} />
             </button>
-            <button type="button" onClick={goToNextTrack} disabled={!currentTrack}>
+            <button type="button" onClick={goToNextTrack} disabled={!currentTrack} aria-label="Sonraki parça">
               <Icon name="next" />
             </button>
-            <button type="button">
+            <button
+              type="button"
+              className={`repeat-button${repeatMode !== 'off' ? ' accent' : ''}`}
+              onClick={() => setRepeatMode((mode) => mode === 'off' ? 'once' : mode === 'once' ? 'one' : 'off')}
+              disabled={!currentTrack}
+              aria-label={REPEAT_LABELS[repeatMode]}
+              aria-pressed={repeatMode !== 'off'}
+              title={REPEAT_LABELS[repeatMode]}
+            >
               <Icon name="repeat" />
+              {repeatMode !== 'off' && (
+                <span className="repeat-mode-badge" aria-hidden="true">{repeatMode === 'once' ? '1' : '∞'}</span>
+              )}
             </button>
           </div>
           <div className="progress-line">
@@ -2505,7 +2756,14 @@ function App() {
         </div>
 
         <div className="volume-controls">
-          <button type="button" onClick={() => setActiveTab('library')}>
+          <button
+            type="button"
+            className={activeTab === 'queue' ? 'accent' : ''}
+            onClick={() => setActiveTab('queue')}
+            aria-label="Çalma kuyruğunu aç"
+            aria-pressed={activeTab === 'queue'}
+            title="Çalma kuyruğu"
+          >
             <Icon name="queue" />
           </button>
           <span>
@@ -2525,7 +2783,7 @@ function App() {
         <audio
           ref={audioRef}
           src={audioSourceUrl || undefined}
-          onEnded={goToNextTrack}
+          onEnded={handleTrackEnded}
           onLoadedMetadata={(event) => {
             event.currentTarget.volume = volume
             setDuration(event.currentTarget.duration)
@@ -2575,7 +2833,7 @@ function App() {
               <div className="modal-head">
                 <div>
                   <h2>{editingPlaylist ? 'Çalma Listesini Düzenle' : 'Yeni Çalma Listesi'}</h2>
-                  <p>Açık klasörde JSON olarak saklanır.</p>
+                  <p>Yeni bir ruh hali, yeni bir seçki.</p>
                 </div>
                 <button type="button" className="modal-close-btn" onClick={() => setIsPlaylistModalOpen(false)}>
                   ✕
@@ -2608,7 +2866,7 @@ function App() {
                 <div className="modal-storage-info">
                   <Icon name="folder" />
                   <span>
-                    Bu liste açık olan klasörde <strong>melodify-playlists/</strong> klasöründe JSON formatında tutulur.
+                    Çalma listen müzik kitaplığında saklanır; yeniden açtığında seni burada bekler.
                   </span>
                 </div>
               </div>

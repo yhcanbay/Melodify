@@ -4,10 +4,10 @@ Windows için yerel müzik oynatıcısı ve müzik kütüphanesi uygulaması.
 
 ## Kullanıcılara verilecek dosyalar
 
-`release/1.0.0/` klasöründe iki dağıtım bulunur:
+`release/1.0.1/` klasöründe iki dağıtım bulunur:
 
-- `Melodify-Windows-1.0.0-x64-Portable.exe`: Kurulum yapmadan çift tıklayarak açılır. Tek başına bu dosyayı paylaşabilirsiniz.
-- `Melodify-Windows-1.0.0-x64-Setup.exe`: Melodify'ı bilgisayara kurar ve kısayol oluşturur. Ek araç kurulumu istemez.
+- `Melodify-Windows-1.0.1-x64-Portable.exe`: Kurulum yapmadan çift tıklayarak açılır. Tek başına bu dosyayı paylaşabilirsiniz.
+- `Melodify-Windows-1.0.1-x64-Setup.exe`: Melodify'ı bilgisayara kurar ve kısayol oluşturur. Ek araç kurulumu istemez.
 
 Her iki paket de Electron, Node.js, yt-dlp, FFmpeg ve ffprobe içerir. Kullanıcıların Node.js, Python veya FFmpeg kurmasına gerek yoktur. Windows 10/11 64 bit hedeflenir.
 
@@ -57,3 +57,11 @@ npm run build:app
 ```
 
 `build:app` yalnızca arayüzü ve Electron kodunu derler; dağıtılabilir exe üretmez. Geliştirmede hazırlanmış araçlar yoksa yt-dlp, Node.js ve FFmpeg sistem PATH'inden kullanılır.
+
+Uygulama simgesinin kaynağı `public/melodify-icon.svg` dosyasıdır. Değiştirdikten sonra `npm run generate:icons` ile PNG ve çok boyutlu Windows ICO dosyalarını yenileyin, ardından Windows paketini tekrar derleyin.
+
+Geliştirme, portable ve kurulu sürüm Windows görev çubuğunda ayrı gruplar kullanır; kurulu eski bir sürümün simgesi geliştirme/portable penceresine taşınmaz. Kurulu sürümün simgesini güncellemek için yeni setup paketini çalıştırın.
+
+Windows görev çubuğunda Melodify'ın üzerine gelerek küçük pencere önizlemesindeki önceki parça, oynat/duraklat ve sonraki parça düğmelerini kullanabilirsiniz. Bu kontroller uygulama küçültülmüşken de çalışır; parça seçilmemişse pasif görünür.
+
+Görev çubuğu değişikliklerini Windows'ta `npm run build:app` ardından `npm run check:taskbar` ile doğrulayın. Bu kontrol ayrı bir geçici profil kullanır; gerçek Windows TaskbarButtonCreated bildirimi gelmeden hiçbir thumbnail API çağrısı yapılmadığını, tıklama bildiriminin gerçek oynatıcıyı kontrol ettiğini ve gizle/göster sonrasında düğmelerin yeniden kurulduğunu sınar. Fareyle açılan küçük pencere önizlemesindeki görünürlüğü ayrıca elle kontrol edin.

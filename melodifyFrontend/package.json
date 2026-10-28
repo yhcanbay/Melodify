@@ -1,7 +1,7 @@
 {
   "name": "melodifyfrontend",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Melodify masaüstü müzik uygulaması",
   "type": "module",
   "scripts": {
@@ -9,6 +9,8 @@
     "dev:renderer": "vite",
     "build": "npm run build:win",
     "build:app": "tsc && vite build",
+    "check:taskbar": "node scripts/check-taskbar.cjs",
+    "generate:icons": "node scripts/generate-icons.cjs",
     "prepare:tools": "node scripts/prepare-windows-tools.mjs",
     "build:win": "npm run prepare:tools && npm run build:app && node scripts/package-windows.mjs",
     "build:portable": "npm run prepare:tools && npm run build:app && node scripts/package-windows.mjs portable",
@@ -16,6 +18,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "koffi": "3.3.4",
     "music-metadata": "^12.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"

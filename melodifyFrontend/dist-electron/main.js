@@ -3,7 +3,7 @@ import "electron";
 import "node:url";
 import "node:path";
 import "node:fs";
-import { Y as _, Z as i, _ as D } from "./main-B8CVF3tq.js";
+import { Y as _, Z as i, _ as D } from "./main-CRN87OCo.js";
 export {
   _ as MAIN_DIST,
   i as RENDERER_DIST,
