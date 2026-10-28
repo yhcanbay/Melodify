@@ -1,0 +1,39 @@
+:root {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  color: #f5f7f8;
+  background: #101418;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+.mobile-welcome {
+  display: flex;
+  min-height: 100svh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+  text-align: center;
+}
+
+.mobile-welcome h1 {
+  margin: 24px 0 8px;
+  font-size: 36px;
+  letter-spacing: -1px;
+}
+
+.mobile-welcome p {
+  margin: 0;
+  color: #abb6bd;
+}

@@ -2,6 +2,8 @@
 
 Windows için yerel müzik oynatıcısı ve müzik kütüphanesi uygulaması.
 
+Android başlangıç projesi ve yerel geliştirme komutları da hazırlanmıştır. Kurulum ve derleme için [mobil geliştirme rehberine](MOBILE.md) bakın. Mobil sürüm şimdilik yalnızca karşılama ekranını içerir; müzik özellikleri sonraki geliştirme aşamasındadır.
+
 ## Kullanıcılara verilecek dosyalar
 
 `release/1.0.1/` klasöründe iki dağıtım bulunur:

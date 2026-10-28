@@ -9,6 +9,14 @@
     "dev:renderer": "vite",
     "build": "npm run build:win",
     "build:app": "tsc && vite build",
+    "dev:mobile": "vite --config vite.mobile.config.ts --host 127.0.0.1",
+    "build:mobile": "tsc --noEmit && tsc --project tsconfig.mobile.json && vite build --config vite.mobile.config.ts",
+    "preview:mobile": "vite preview --config vite.mobile.config.ts --host 127.0.0.1",
+    "android:doctor": "node scripts/android.mjs doctor",
+    "android:sync": "npm run build:mobile && node scripts/android.mjs sync",
+    "android:open": "node scripts/android.mjs open",
+    "android:build": "npm run android:sync && node scripts/android.mjs build",
+    "android:run": "npm run android:sync && node scripts/android.mjs run",
     "check:taskbar": "node scripts/check-taskbar.cjs",
     "generate:icons": "node scripts/generate-icons.cjs",
     "prepare:tools": "node scripts/prepare-windows-tools.mjs",
@@ -18,12 +26,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3",
     "koffi": "3.3.4",
     "music-metadata": "^12.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.5.3",
     "@types/react": "^18.2.64",
     "@types/react-dom": "^18.2.21",
     "@typescript-eslint/eslint-plugin": "^7.1.1",

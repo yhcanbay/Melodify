@@ -8,6 +8,7 @@ Melodify, yerel müzikleri çevrimdışı çalan, çalma listeleri yöneten ve Y
 
 - Arayüz: React 18, TypeScript 5, Vite 5; düz CSS ve yerel SVG ikonları.
 - Masaüstü: Electron 30; derleme entegrasyonu `vite-plugin-electron/simple`.
+- Mobil başlangıç: Capacitor 8.5.3, Android API 24+; ayrı Vite girişi ve native Android kaynakları. Kurulum ayrıntıları `MOBILE.md` içindedir. Şimdilik yalnızca karşılama ekranı vardır.
 - Medya: HTML `<audio>`, kapak okuma için `music-metadata`, arama/indirme için yt-dlp, dönüştürme için FFmpeg/ffprobe.
 - Paket yöneticisi: npm ve `package-lock.json`. Bağımlılık değişikliklerinde kilit dosyasını da güncelle.
 - Dağıtım hedefi: Windows x64, portable ve NSIS kurulum paketi. Yapılandırmada macOS/Linux hedefleri bulunsa da mevcut paketleme betikleri Windows x64 gerektirir.
@@ -20,6 +21,10 @@ Kesin bağımlılık sürümleri için `package.json` ve `package-lock.json`, da
 | Yol | Sorumluluk |
 | --- | --- |
 | `src/main.tsx` | React giriş noktası ve genel stil yüklemesi. |
+| `mobile/index.html`, `mobile/src/` | Electron köprüsünden bağımsız mobil başlangıç girişi. |
+| `capacitor.config.ts`, `vite.mobile.config.ts`, `tsconfig.mobile.json` | Android kimliği ve ayrı mobil web derlemesi. |
+| `android/` | Sürüm kontrolünde tutulan native Android projesi ve Gradle wrapper. |
+| `scripts/android.mjs`, `MOBILE.md` | JDK/SDK denetimi, Android komutları ve mobil kurulum rehberi. |
 | `src/App.tsx` | Sekmeler, kitaplık, kuyruk, oynatıcı, arama/indirme, çalma listeleri ve içe/dışa aktarma arayüzü. |
 | `src/App.css` | Ortak bileşenler ve temel yerleşim stilleri. |
 | `src/Studio.css` | Melodify Studio paleti, ekran düzenleri, etkileşimler ve responsive tema; App.css sonrasında yüklenir. |
@@ -53,6 +58,12 @@ Node.js 22 veya üzerini kullan; Windows araç hazırlama betiği paketlenecek N
 | `npm run lint` | TypeScript/TSX dosyalarında ESLint; uyarı toleransı sıfırdır. |
 | `node node_modules/typescript/bin/tsc --noEmit` | Çıktı üretmeden TypeScript kontrolü yapar. |
 | `npm run build:app` | TypeScript kontrolünden sonra Vite ile renderer, main ve preload kodunu derler. EXE üretmez. |
+| `npm run dev:mobile` | Mobil web başlangıcını 127.0.0.1:5174 üzerinde sunar; Electron başlatmaz. |
+| `npm run build:mobile` | Mobil TypeScript kontrolü ve `dist-mobile/` web derlemesi. |
+| `npm run android:doctor` | JDK 21, Android SDK Platform 36, adb ve Build-Tools denetimi. |
+| `npm run android:sync` | Mobil web derlemesi ve Capacitor Android senkronizasyonu. |
+| `npm run android:build` | Senkronizasyon ve Gradle 8.14.3 wrapper ile debug APK üretimi. |
+| `npm run android:open` / `npm run android:run` | Android Studio'da açma / bağlı cihaz veya emülatöre yükleme. |
 | `npm run check:taskbar` | build:app sonrasında Windows'ta gerçek TaskbarButtonCreated bildirimi öncesinde sıfır kayıt yapıldığını, WM_COMMAND/oynatıcı IPC'sini ve gizle/göster sonrasında yeniden kurulumu doğrular. Fareyle açılan önizlemenin görünürlüğü ayrıca kontrol edilmelidir. |
 | `npm run generate:icons` | public/melodify-icon.svg kaynağından public/ ve build/ simgelerini gizli Electron penceresinde yeniler. |
 | `npm run prepare:tools` | Araçları `vendor/windows-x64/` altında paketlemeye hazırlar. |
@@ -70,6 +81,7 @@ Genel otomatik test altyapısı veya `npm test` betiği yoktur. Görev çubuğu 
 ## Katman sınırları ve kod kuralları
 
 - Renderer, dosya sistemi/alt süreç/native diyalog işlemlerini `window.melodifyApi` üzerinden ister. React bileşenlerine doğrudan Node.js veya Electron erişimi ekleme.
+- Bu Electron köprüsü masaüstüne aittir. Mobil girişte `window.melodifyApi` kullanma; Android native özellikleri sonraki aşamada Capacitor adaptörlerine bağlanacaktır. Mobil pakete Electron, Koffi veya Windows araçlarını dahil etme.
 - `BrowserWindow` için `contextIsolation: true` ve `nodeIntegration: false` ayarlarını koru. Preload yalnızca ihtiyaç duyulan yöntemleri sunsun; genel amaçlı IPC veya komut çalıştırma köprüsü açma.
 - Yeni IPC işlevinde ortak tipleri, main işleyicisini, preload yöntemini, `Window` bildirimini ve renderer çağrısını birlikte güncelle. TypeScript tipleri çalışma zamanında gelen veriyi doğrulamaz; yeni/değişen IPC ve JSON girişlerinde gerekli alan, yol ve değer kontrollerini yap.
 - `onMediaCommand` ve `onImportProgress` aboneliklerinin döndürdüğü temizleme fonksiyonunu effect cleanup içinde kullan.
@@ -117,6 +129,7 @@ Paketleme Windows x64 üzerinde yapılır. `yt-dlp.exe`, `ffmpeg.exe`, `ffprobe.
 Geliştirmede araçlar önce `vendor/windows-x64/` altında aranır; bulunamazsa PATH kullanılır. Paketli Windows uygulamasında `process.resourcesPath/tools` altındaki eksik araç hata üretir. yt-dlp güncellemesi yazılabilir kullanıcı veri kopyasına uygulanır; kurulum klasöründeki aracı değiştirme. Portable sürümün ayarları da kullanıcı profilinde tutulur.
 
 - `dist/`, `dist-electron/`, `release/`, `vendor/windows-x64/` ve `node_modules/` üretilen/harici içeriktir; uygulama kaynakları yerine bunları elle düzenleme.
+- Mobilde `dist-mobile/`, `.cache/`, `android/**/build/`, kopyalanan web dosyaları ve `android/local.properties` yerel/üretilen içeriktir. `android/` kaynakları ve Gradle wrapper Git'te tutulur. İmzalama anahtarlarını ekleme. Android komutları JDK 21'i proje alt süreçlerine seçer; sistemin genel Java ayarlarını değiştirme.
 - `dist-electron/main.js` ve `dist-electron/preload.mjs` şu anda `.gitignore` kuralına rağmen Git tarafından izleniyor. Derlemeden sonra diff'i kontrol et; görev kapsamı dışındaki üretilmiş değişiklikleri teslimata katma ve kullanıcının mevcut değişikliklerini silme.
 - `vite.config.ts` içindeki `base: './'`, paketli `dist/index.html` yüklemesi ve `preload.mjs` yolu birlikte çalışır. Kaynak/asset yollarını değiştirirken paketli açılışı doğrula.
 - Paketler `release/<version>/` altına çıkar. Sürüm değişikliğinde `package.json` ile kilit dosyasını tutarlı tut; README'deki örnek dosya adlarını da gözden geçir.
