@@ -2,6 +2,10 @@
 
 Bu dosya `melodifyFrontend/` ve altındaki çalışmalar için geçerlidir. Komutları aksi belirtilmedikçe bu klasörde çalıştır. Projenin mevcut davranışını koruyarak istenen değişikliğe odaklan; bu rehberde belirtilen geliştirme alanları kendiliğinden yeniden yazım talimatı değildir.
 
+## Mobil geliştirme planı
+
+Mobil geliştirme görevlerinde önce [kalıcı Android geliştirme planını](MOBILE_PLAN.md) ve ilerleme kaydını oku. Kullanıcıyla netleştirilen hedefler, uygulama sırası, gerçek cihaz indirme doğrulaması ve kabul koşulları bu belgede tutulur. Mevcut kodu kontrol ederek kullanıcının istediği aşamadan devam et; tamamlanan işleri ve gerçekten yapılan doğrulamaları planın ilerleme kaydına işle. Planı okumak bütün aşamaları kendiliğinden uygulama talimatı değildir; kullanıcının güncel kapsamı ve sonraki kararları önceliklidir.
+
 ## Projenin amacı ve teknolojiler
 
 Melodify, yerel müzikleri çevrimdışı çalan, çalma listeleri yöneten ve YouTube üzerinden arama/indirme yapabilen bir masaüstü uygulamasıdır. Bu klasör hem arayüzü hem Electron uygulama katmanını içerir; ayrı bir HTTP backend gerektirmez.
@@ -25,6 +29,7 @@ Kesin bağımlılık sürümleri için `package.json` ve `package-lock.json`, da
 | `capacitor.config.ts`, `vite.mobile.config.ts`, `tsconfig.mobile.json` | Android kimliği ve ayrı mobil web derlemesi. |
 | `android/` | Sürüm kontrolünde tutulan native Android projesi ve Gradle wrapper. |
 | `scripts/android.mjs`, `MOBILE.md` | JDK/SDK denetimi, Android komutları ve mobil kurulum rehberi. |
+| `MOBILE_PLAN.md` | Kalıcı mobil geliştirme planı, kullanıcı kararları, aşamalar, kabul koşulları ve ilerleme kaydı. |
 | `src/App.tsx` | Sekmeler, kitaplık, kuyruk, oynatıcı, arama/indirme, çalma listeleri ve içe/dışa aktarma arayüzü. |
 | `src/App.css` | Ortak bileşenler ve temel yerleşim stilleri. |
 | `src/Studio.css` | Melodify Studio paleti, ekran düzenleri, etkileşimler ve responsive tema; App.css sonrasında yüklenir. |

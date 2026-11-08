@@ -1,6 +1,6 @@
 # Melodify Android geliştirme hazırlığı
 
-Bu hazırlık React + Capacitor tabanlı Android başlangıç projesini kurar. Mobil uygulama şu anda yalnızca Melodify karşılama ekranını gösterir. Kitaplık taraması, native oynatıcı, arka planda çalma, çalma listeleri ve yt-dlp henüz mobile bağlanmadı; bunların uygulama planı sonraki aşamada hazırlanacak.
+Bu hazırlık React + Capacitor tabanlı Android başlangıç projesini kurar. Mobil uygulama şu anda yalnızca Melodify karşılama ekranını gösterir. Kitaplık taraması, native oynatıcı, arka planda çalma, çalma listeleri ve yt-dlp henüz mobile bağlanmadı. Bu özelliklerin uygulama sırası, teknoloji kararları, kabul koşulları ve güncel ilerleme kaydı [kalıcı mobil geliştirme planında](MOBILE_PLAN.md) bulunur.
 
 ## Gereksinimler
 
