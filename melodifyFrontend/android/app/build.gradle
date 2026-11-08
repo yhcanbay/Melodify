@@ -1,15 +1,25 @@
 apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
+apply plugin: 'com.google.devtools.ksp'
+
+def appPackage = new groovy.json.JsonSlurper().parse(file('../../package.json'))
+def androidTools = new groovy.json.JsonSlurper().parse(file('../../android-tools.json'))
+def generatedTools = rootProject.file('../.cache/android-tools/generated')
 
 android {
     namespace = "com.yhcanbay.melodify"
     compileSdk = rootProject.ext.compileSdkVersion
+    ndkVersion androidTools.ndk.version
     defaultConfig {
         applicationId "com.yhcanbay.melodify"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0"
+        versionName appPackage.version
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+        }
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
@@ -17,11 +27,42 @@ android {
         }
     }
     buildTypes {
+        debug {
+            applicationIdSuffix ".debug"
+            resValue "string", "app_name", "Melodify Dev"
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+    kotlinOptions {
+        jvmTarget = '21'
+    }
+    buildFeatures {
+        buildConfig true
+    }
+    sourceSets {
+        main.res.srcDir new File(generatedTools, 'res')
+        main.assets.srcDir new File(generatedTools, 'assets')
+        main.jniLibs.srcDir new File(generatedTools, 'jniLibs')
+    }
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging true
+            keepDebugSymbols += ['**/libpython.zip.so', '**/libffmpeg.zip.so']
+        }
+    }
+}
+
+tasks.register('prepareAndroidTools', Exec) {
+    workingDir rootProject.file('..')
+    commandLine 'node', 'scripts/prepare-android-tools.mjs'
+}
+tasks.named('preBuild').configure { dependsOn 'prepareAndroidTools' }
+
+ksp {
+    arg('room.schemaLocation', "$projectDir/schemas")
 }
 
 repositories {
@@ -31,6 +72,12 @@ repositories {
 }
 
 dependencies {
+    implementation 'androidx.media3:media3-exoplayer:1.11.1'
+    implementation 'androidx.media3:media3-session:1.11.1'
+    implementation 'androidx.room:room-runtime:2.8.5'
+    ksp 'androidx.room:room-compiler:2.8.5'
+    implementation "io.github.junkfood02.youtubedl-android:library:${androidTools.youtubedlAndroid}"
+    implementation "io.github.junkfood02.youtubedl-android:ffmpeg:${androidTools.youtubedlAndroid}"
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"

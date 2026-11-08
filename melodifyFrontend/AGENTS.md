@@ -12,7 +12,7 @@ Melodify, yerel müzikleri çevrimdışı çalan, çalma listeleri yöneten ve Y
 
 - Arayüz: React 18, TypeScript 5, Vite 5; düz CSS ve yerel SVG ikonları.
 - Masaüstü: Electron 30; derleme entegrasyonu `vite-plugin-electron/simple`.
-- Mobil başlangıç: Capacitor 8.5.3, Android API 24+; ayrı Vite girişi ve native Android kaynakları. Kurulum ayrıntıları `MOBILE.md` içindedir. Şimdilik yalnızca karşılama ekranı vardır.
+- Mobil temel: Capacitor 8.5.3, Kotlin 2.2.10, Android API 24+; ayrı Vite girişi, dört ana sekme/Ayarlar iskeleti, tipli platform adaptörleri ve beş kayıtlı native eklenti. Özellikler ve doğrulama durumu `MOBILE_PLAN.md`, kurulum ayrıntıları `MOBILE.md` içindedir.
 - Medya: HTML `<audio>`, kapak okuma için `music-metadata`, arama/indirme için yt-dlp, dönüştürme için FFmpeg/ffprobe.
 - Paket yöneticisi: npm ve `package-lock.json`. Bağımlılık değişikliklerinde kilit dosyasını da güncelle.
 - Dağıtım hedefi: Windows x64, portable ve NSIS kurulum paketi. Yapılandırmada macOS/Linux hedefleri bulunsa da mevcut paketleme betikleri Windows x64 gerektirir.
@@ -25,7 +25,8 @@ Kesin bağımlılık sürümleri için `package.json` ve `package-lock.json`, da
 | Yol | Sorumluluk |
 | --- | --- |
 | `src/main.tsx` | React giriş noktası ve genel stil yüklemesi. |
-| `mobile/index.html`, `mobile/src/` | Electron köprüsünden bağımsız mobil başlangıç girişi. |
+| `mobile/index.html`, `mobile/src/` | Electron köprüsünden bağımsız mobil uygulama; app, components, features, platform ve styles katmanları. |
+| `src/shared/mobile.ts` | Masaüstü dosya yollarından bağımsız mobil kimlik, content URI, durum ve komut sözleşmeleri. |
 | `capacitor.config.ts`, `vite.mobile.config.ts`, `tsconfig.mobile.json` | Android kimliği ve ayrı mobil web derlemesi. |
 | `android/` | Sürüm kontrolünde tutulan native Android projesi ve Gradle wrapper. |
 | `scripts/android.mjs`, `MOBILE.md` | JDK/SDK denetimi, Android komutları ve mobil kurulum rehberi. |
@@ -65,9 +66,13 @@ Node.js 22 veya üzerini kullan; Windows araç hazırlama betiği paketlenecek N
 | `npm run build:app` | TypeScript kontrolünden sonra Vite ile renderer, main ve preload kodunu derler. EXE üretmez. |
 | `npm run dev:mobile` | Mobil web başlangıcını 127.0.0.1:5174 üzerinde sunar; Electron başlatmaz. |
 | `npm run build:mobile` | Mobil TypeScript kontrolü ve `dist-mobile/` web derlemesi. |
+| `npm run test:mobile` | Node.js 22.18+ ile mobil gezinme, durum doğrulaması/yenilemesi ve native abonelik yaşam döngüsü kontrolleri. |
+| `npm run check:mobile-ui` | Mobil derleme ve gizli Electron test penceresinde gezinme, tema kalıcılığı ve küçük ekran kontrolleri; telefona erişmez. |
 | `npm run android:doctor` | JDK 21, Android SDK Platform 36, adb ve Build-Tools denetimi. |
 | `npm run android:sync` | Mobil web derlemesi ve Capacitor Android senkronizasyonu. |
 | `npm run android:build` | Senkronizasyon ve Gradle 8.14.3 wrapper ile debug APK üretimi. |
+| `npm run android:test` | Kotlin saf kuralları ve indirme girdi doğrulamalarını JUnit ile çalıştırır. |
+| `npm run android:check-bridge -- <seri-no> --library-test` | Kullanıcının seçtiği kitaplıkta tarama, kimlik, arama ve gerçek kapak okuması; dosya silmez/ayar değiştirmez. |
 | `npm run android:open` / `npm run android:run` | Android Studio'da açma / bağlı cihaz veya emülatöre yükleme. |
 | `npm run check:taskbar` | build:app sonrasında Windows'ta gerçek TaskbarButtonCreated bildirimi öncesinde sıfır kayıt yapıldığını, WM_COMMAND/oynatıcı IPC'sini ve gizle/göster sonrasında yeniden kurulumu doğrular. Fareyle açılan önizlemenin görünürlüğü ayrıca kontrol edilmelidir. |
 | `npm run generate:icons` | public/melodify-icon.svg kaynağından public/ ve build/ simgelerini gizli Electron penceresinde yeniler. |
@@ -81,12 +86,12 @@ PowerShell betik çalıştırma ilkesi `npm` çağrısını engellerse aynı kom
 
 Kod değişikliklerinde lint ve TypeScript kontrolünü çalıştır. Derleme, IPC veya bağımlılık değişikliklerinde ayrıca `build:app` ile entegrasyonu doğrula. EXE paketlemeyi dağıtım/paketleme değişikliklerinde yap; rutin arayüz değişiklikleri için `npm run build` gereksiz araç hazırlığı ve paketleme başlatır. Yalnızca dokümantasyon değişikliklerinde ilgili dosya, yol ve komutların doğrulanması yeterlidir.
 
-Genel otomatik test altyapısı veya `npm test` betiği yoktur. Görev çubuğu için `check:taskbar` odaklı bir Windows regresyon kontrolü vardır; geçici profil ve sessiz test sesi kullanır. Çalıştırmadığın testleri başarılı olarak raporlama. Diğer davranış değişikliklerini aşağıdaki ilgili manuel senaryolarla doğrula; yeni test altyapısını ihtiyaç ve görev kapsamına göre değerlendir.
+Genel bir `npm test` betiği yoktur. Mobilde `test:mobile` ve `check:mobile-ui`, görev çubuğunda `check:taskbar` odaklı regresyon kontrolleridir. Arayüz kontrolü mevcut Electron bağımlılığını ve `.cache/` altındaki test profilini kullanır; mobil uygulama paketine Electron eklemez. Çalıştırmadığın testleri başarılı olarak raporlama. Diğer davranış değişikliklerini aşağıdaki ilgili manuel senaryolarla doğrula; yeni test altyapısını ihtiyaç ve görev kapsamına göre değerlendir.
 
 ## Katman sınırları ve kod kuralları
 
 - Renderer, dosya sistemi/alt süreç/native diyalog işlemlerini `window.melodifyApi` üzerinden ister. React bileşenlerine doğrudan Node.js veya Electron erişimi ekleme.
-- Bu Electron köprüsü masaüstüne aittir. Mobil girişte `window.melodifyApi` kullanma; Android native özellikleri sonraki aşamada Capacitor adaptörlerine bağlanacaktır. Mobil pakete Electron, Koffi veya Windows araçlarını dahil etme.
+- Bu Electron köprüsü masaüstüne aittir. Mobil girişte `window.melodifyApi` kullanma; Android özelliklerini `mobile/src/platform/` içindeki tipli Capacitor adaptörlerine bağla. Mobil pakete Electron, Koffi veya Windows araçlarını dahil etme. Native `getSnapshot` yanıtlarını, protokol sürümünü ve yeni komut girdilerini çalışma zamanında doğrula.
 - `BrowserWindow` için `contextIsolation: true` ve `nodeIntegration: false` ayarlarını koru. Preload yalnızca ihtiyaç duyulan yöntemleri sunsun; genel amaçlı IPC veya komut çalıştırma köprüsü açma.
 - Yeni IPC işlevinde ortak tipleri, main işleyicisini, preload yöntemini, `Window` bildirimini ve renderer çağrısını birlikte güncelle. TypeScript tipleri çalışma zamanında gelen veriyi doğrulamaz; yeni/değişen IPC ve JSON girişlerinde gerekli alan, yol ve değer kontrollerini yap.
 - `onMediaCommand` ve `onImportProgress` aboneliklerinin döndürdüğü temizleme fonksiyonunu effect cleanup içinde kullan.

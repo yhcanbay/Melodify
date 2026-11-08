@@ -1,11 +1,10 @@
 import ReactDOM from 'react-dom/client'
-import melodifyIcon from '../../public/melodify-icon.svg'
-import './mobile.css'
+import { StrictMode } from 'react'
+import { applyAppearance, readAppearance } from '../../src/shared/appearance'
+import { MobileApp } from './app/MobileApp'
+import './styles/mobile.css'
 
+applyAppearance(readAppearance())
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <main className="mobile-welcome">
-    <img src={melodifyIcon} alt="" width="96" height="96" />
-    <h1>Melodify</h1>
-    <p>Mobil deneyim yakında.</p>
-  </main>,
+  <StrictMode><MobileApp /></StrictMode>,
 )

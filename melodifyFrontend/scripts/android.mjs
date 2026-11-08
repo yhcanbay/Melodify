@@ -89,8 +89,8 @@ function findSdkRoot() {
 }
 
 try {
-  if (!['doctor', 'sync', 'open', 'build', 'run'].includes(command)) {
-    throw new Error('Kullanım: node scripts/android.mjs doctor|sync|open|build|run')
+  if (!['doctor', 'sync', 'open', 'build', 'test', 'run'].includes(command)) {
+    throw new Error('Kullanım: node scripts/android.mjs doctor|sync|open|build|test|run')
   }
 
   const javaHome = findJavaHome()
@@ -138,11 +138,22 @@ try {
     writeFileSync(localProperties, `sdk.dir=${sdkRoot.replace(/\\/g, '/')}\n`)
   }
 
-  if (command === 'build') {
+  if (command === 'build' || command === 'test') {
+    run(process.execPath, [path.join(projectRoot, 'scripts', 'prepare-android-tools.mjs')], { env })
+    const testJvmOptions = []
+    if (command === 'test' && process.platform === 'win32') {
+      const gradleProperties = readFileSync(path.join(androidRoot, 'gradle.properties'), 'utf8')
+      const configuredJvmArgs = gradleProperties.match(/^org\.gradle\.jvmargs=(.*)$/m)?.[1].trim() ?? ''
+      // Java's Windows argument-file reader uses the native encoding. Match the
+      // test daemon's writer without changing system settings or source encoding.
+      const compatibleArgs = configuredJvmArgs.replace(/-Dfile\.encoding=\S+/g, '').trim()
+      testJvmOptions.push(`-Dorg.gradle.jvmargs=${compatibleArgs} -Dfile.encoding=COMPAT`)
+    }
     run(path.join(javaHome, 'bin', `java${executableSuffix}`), [
       '-classpath', path.join(androidRoot, 'gradle', 'wrapper', 'gradle-wrapper.jar'),
       'org.gradle.wrapper.GradleWrapperMain',
-      '--no-daemon', '--console=plain', 'assembleDebug',
+      '--no-daemon', '--console=plain', ...testJvmOptions,
+      command === 'test' ? ':app:testDebugUnitTest' : 'assembleDebug',
     ], { cwd: androidRoot, env })
   } else {
     const args = command === 'run' ? ['run', 'android', '--no-sync'] : [command, 'android']

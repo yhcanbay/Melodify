@@ -1,0 +1,38 @@
+{
+  "status": "step-1-validated-arm64-api33",
+  "validation": {
+    "date": "2026-11-08",
+    "abi": "arm64-v8a",
+    "androidApi": 33,
+    "mp3JpegMetadata": true,
+    "savedCopySha256Matches": true,
+    "airplaneModePlayback": true,
+    "downloadAndConversionCancellation": true,
+    "releaseAcceptanceComplete": false
+  },
+  "youtubedlAndroid": "0.18.1",
+  "ytDlp": {
+    "version": "2026.10.26",
+    "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp",
+    "sha256": "e51e69e89489f199530f13d32a4342da3ddb2cf34842f364603a066db05afbf3"
+  },
+  "auditedArtifacts": {
+    "library": "579b5fb480892b1abc2b218c2089699d52759cc8d7ba256bf876453f0365faef",
+    "ffmpeg": "0a87ffa6cf912b0fe76c1a99b9107f543ee2f247935fae2c71f0822eb7bc5f49"
+  },
+  "ndk": {
+    "version": "28.2.13676358",
+    "runtimeSha256": {
+      "arm64-v8a": "ab4e6c71b96b851de45a8a9bd86369e7dbc2130a44b3b4520564be94847910f2",
+      "armeabi-v7a": "10ee48131d6742899619f7cfb3b8df150ad787d723c766a3fb80d4bb275711ff",
+      "x86_64": "e4cd73c8a3607269f3be58d15c21f78bff112e27f9398d6261e5f965668f8746"
+    }
+  },
+  "sources": {
+    "wrapper": "https://github.com/yausername/youtubedl-android/tree/0.18.1",
+    "missingCppRuntime": "https://github.com/yausername/youtubedl-android/issues/369",
+    "ytDlpLicense": "https://github.com/yt-dlp/yt-dlp/blob/2026.10.26/LICENSE",
+    "wrapperLicense": "https://github.com/yausername/youtubedl-android/blob/0.18.1/LICENSE",
+    "ndkLicense": "https://android.googlesource.com/toolchain/llvm-project/+/refs/heads/main/libcxx/LICENSE.TXT"
+  }
+}

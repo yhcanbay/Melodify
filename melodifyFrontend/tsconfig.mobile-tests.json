@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.mobile.json",
+  "include": ["scripts/fixtures/mobile-ui", "src/vite-env.d.ts"],
+  "references": []
+}

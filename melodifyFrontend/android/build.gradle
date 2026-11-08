@@ -8,6 +8,8 @@ buildscript {
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:8.13.0'
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.2.10'
+        classpath 'com.google.devtools.ksp:symbol-processing-gradle-plugin:2.2.10-2.0.2'
         classpath 'com.google.gms:google-services:4.4.4'
 
         // NOTE: Do not place your application dependencies here; they belong
@@ -19,6 +21,18 @@ apply from: "variables.gradle"
 
 allprojects {
     repositories {
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = 'MelodifyVerifiedAndroidTools'
+                    url = rootProject.file('../.cache/android-tools/repository')
+                }
+            }
+            filter {
+                includeModule('io.github.junkfood02.youtubedl-android', 'library')
+                includeModule('io.github.junkfood02.youtubedl-android', 'ffmpeg')
+            }
+        }
         google()
         mavenCentral()
     }
